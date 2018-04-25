@@ -1,5 +1,5 @@
 (defproject mlalgorithmsclj "0.0.1-alpha"
-  :description "use closure and return fn to capsurize init params or states like class"
+  :description "use closure and return fn to capsurize init params or states like class. keyword and multimethod for activiaton loss grad fns. "
   :url "https://github.com/ghosthamlet/MLAlgorithmsClj"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
