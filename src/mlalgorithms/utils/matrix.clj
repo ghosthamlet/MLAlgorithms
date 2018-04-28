@@ -72,5 +72,8 @@
          (not-implement))
      (not-implement)))
 
- (defn empty [shape]
-   (reshape [] shape))
+(defn zeros [shape]
+  (reshape [] shape))
+
+(defn empty [shape]
+  (reshape [] shape))

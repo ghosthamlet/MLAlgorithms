@@ -69,14 +69,11 @@
                        regularization]
                 :as model}
                X y]
-  (prn X)
   (let [X (m/insert X 0 1 :axis 1)]
     ;; Do gradient descent for n-iterations
-    (prn X)
     (loop [i n-iterations
            w (init-weights! model ((shape X) 1))
            training-errors []]
-      (prn i)
       (if (= i 0)
         (assoc model
                :w w
