@@ -7,8 +7,10 @@
             [clojure.core.matrix :refer :all]
             [clojure.core.matrix.random :as r]
             [clojure.core.matrix.operators :refer :all]
-            [clojure.core.matrix.linear :as linear]
-            [mlalgorithms.utils.matrix :as mm]))
+            [clojure.core.matrix.linear :as l]
+            [mlalgorithms.utils.util :refer :all]
+            [mlalgorithms.utils.matrix :as m]
+            [mlalgorithms.utils.error :refer :all]))
 
 (defprotocol PRegularization
   (grad [this w]))
@@ -24,9 +26,9 @@
 (defrecord L1Regularization [alpha]
   clojure.lang.IFn
   (invoke [this w]
-    (-> w linear/norm (* alpha)))
+    (-> w l/norm (* alpha)))
 
-  PRegularization 
+  PRegularization
   (grad [this w]
     (* alpha (signum w))))
 
@@ -46,7 +48,7 @@
   clojure.lang.IFn
   (invoke [this w]
     (* alpha
-       (+ (-> w linear/norm (* l1-ratio))
+       (+ (-> w l/norm (* l1-ratio))
           (-> w transpose (dot w) (* (- 1 l1-ratio) 0.5)))))
 
   PRegularization
@@ -60,18 +62,21 @@
 ;; Initialize weights randomly [-1/N, 1/N]
 (defmethod init-weights! :default [model n-features]
   (let [limit (/ 1 (sqrt n-features))]
-    (mm/uniform (- limit) limit [n-features])))
+    (m/uniform (- limit) limit [n-features])))
 
 (defn reg-fit! [{:keys [n-iterations
                        learning-rate
                        regularization]
                 :as model}
                X y]
-  (let [X (mm/insert X 0 1 :axis 1)]
-    ;; Do gradient descent for n_iterations
+  (prn X)
+  (let [X (m/insert X 0 1 :axis 1)]
+    ;; Do gradient descent for n-iterations
+    (prn X)
     (loop [i n-iterations
            w (init-weights! model ((shape X) 1))
            training-errors []]
+      (prn i)
       (if (= i 0)
         (assoc model
                :w w
@@ -89,16 +94,50 @@
 
 (defn reg-predict [model X]
   ;; Insert constant ones for bias weights
-  (dot (mm/insert X 0 1 :axis 1) (:w model)))
+  (dot (m/insert X 0 1 :axis 1) (:w model)))
 
 (defprotocol PModel
   (fit [this X y])
   (predict [this X]))
 
 (defrecord LinearRegression
-    [n-iterations learning-rate
-     regularization
-     w training-errors]
+    [n-iterations learning-rate regularization
+     gradient-descent w training-errors]
+  PModel
+  (fit [this X y]
+    (if gradient-descent
+      (reg-fit! this X y)
+      (not-implement)))
+
+  (predict [this X]
+    (reg-predict this X)))
+
+(defn lasso-normalize [X degree]
+  (normalize (polynomial-features X degree)))
+
+(defrecord LassoRegression
+    [n-iterations learning-rate regularization
+     degree w training-errors]
+  PModel
+  (fit [this X y]
+    (reg-fit! this (lasso-normalize X degree) y))
+
+  (predict [this X]
+    (reg-predict this (lasso-normalize X degree))))
+
+(defrecord PolynomialRegression
+    [n-iterations learning-rate regularization
+     degree w training-errors]
+  PModel
+  (fit [this X y]
+    (reg-fit! this (polynomial-features X degree) y))
+
+  (predict [this X]
+    (reg-predict this (polynomial-features X degree))))
+
+(defrecord RidgeRegression
+    [n-iterations learning-rate regularization
+     degree w training-errors]
   PModel
   (fit [this X y]
     (reg-fit! this X y))
@@ -106,30 +145,55 @@
   (predict [this X]
     (reg-predict this X)))
 
-(defn make-regression
-  [& {:keys [n-iterations learning-rate
-             regularization
-             w training-errors]
-      :or {w nil}}]
-  (LinearRegression. n-iterations learning-rate
-                    regularization
-                    w training-errors))
+(defrecord PolynomialRidgeRegression
+    [n-iterations learning-rate regularization
+     degree w training-errors]
+  PModel
+  (fit [this X y]
+    (reg-fit! this (lasso-normalize X degree) y))
 
-(defn test []
+  (predict [this X]
+    (reg-predict this (lasso-normalize X degree))))
+
+(defrecord ElasticNet
+    [n-iterations learning-rate regularization
+     degree w training-errors]
+  PModel
+  (fit [this X y]
+    (reg-fit! this (lasso-normalize X degree) y))
+
+  (predict [this X]
+    (reg-predict this (lasso-normalize X degree))))
+
+(defn make-linear-regression
+  [& {:keys [n-iterations learning-rate
+             gradient-descent w training-errors]
+      :or {n-iterations 100
+           learning-rate 0.001
+           gradient-descent true}}]
+  (LinearRegression. n-iterations learning-rate
+                     ;; same as ZeroRegularization
+                     (reify clojure.lang.IFn
+                       (invoke [_ _] 0)
+                       PRegularization
+                       (grad [_ _] 0)) gradient-descent
+                     w training-errors))
+
+(defn make-lasso-regression
+  [& {:keys [n-iterations learning-rate
+             degree reg-factor w training-errors]
+      :or {n-iterations 300
+           learning-rate 0.01}}]
+  (LassoRegression. n-iterations learning-rate
+                   (L1Regularization. reg-factor)
+                   degree w training-errors))
+
+(defn reg-test []
   (def X [[1 2] [10 20]])
   (def y [2 3])
-  ;; same as ZeroRegularization
-  (def zero-regularization (reify clojure.lang.IFn
-                             (invoke [_ _] 0)
-                             PRegularization
-                             (grad [_ _] 0)))
-  (def reg (make-regression :n-iterations 10
-                            :learning-rate 0.001
-                            :regularization zero-regularization))
-  (def reg1 (fit reg X y))
-  (predict reg1 X)
-  (:w reg1)
-  ; (:training-errors reg1)
-  )
-
-(test)
+  (def lr (make-linear-regression :n-iterations 10
+                                   :learning-rate 0.001))
+  (def lr2 (fit lr X y))
+  (predict lr2 X)
+  (:w lr2)
+  #_(:training-errors lr2))
