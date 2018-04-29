@@ -50,13 +50,10 @@
         xs-new
         (recur (inc i)
                (next combinations)
-               (sel/set-sel xs-new
-                            (sel/irange)
-                            i
-                            (m/prod (sel/sel xs
-                                             (sel/irange)
-                                             (first combinations))
-                                    1)))))))
+               (m/sety xs-new
+                       i
+                       (m/prod (m/gety xs (first combinations))
+                               1)))))))
 
 (defmacro gen-record
   "

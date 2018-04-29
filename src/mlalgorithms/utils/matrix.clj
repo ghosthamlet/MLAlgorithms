@@ -4,7 +4,14 @@
             [clojure.core.matrix.random :as r]
             [clojure.core.matrix.operators :refer :all]
             [clojure.core.matrix.linear :as l]
+            [clojure.core.matrix.selection :as sel]
             [mlalgorithms.utils.error :refer :all]))
+
+(defmacro sety [xs x v]
+  `(sel/set-sel ~xs (sel/irange) ~x ~v))
+
+(defmacro gety [xs x]
+  `(sel/sel ~xs (sel/irange) ~x))
 
 (defn uniform [low high size]
    (+ low
@@ -74,6 +81,9 @@
 
 (defn zeros [shape]
   (reshape [] shape))
+
+(defn zeros-like [xs]
+  (reshape [] (shape xs)))
 
 (defn empty [shape]
   (reshape [] shape))
