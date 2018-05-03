@@ -17,6 +17,11 @@
          image-to-column
          column-to-image)
 
+;; tmp
+(declare grad tile pad)
+
+(def activation-functions {})
+
 (defprotocol Layer
   (initialize [this optimizer])
   (set-input-shape [this shape])
@@ -88,7 +93,7 @@
             :U-opt optimizer
             :V-opt optimizer
             :W-opt optimizer
-            :activation ((activation activation_functions))
+            :activation ((activation activation-functions))
             :trainable true)))
 
   (parameters [this]
@@ -97,11 +102,11 @@
        (m/prod (shape W))))
 
   (forward-pass [this X _]
-    (let [[batch-size timesteps input-dim] (shape X)]
+    (let [[batch-size timesteps input-dim] (shape X)
+          states (m/zeros [batch-size (inc timesteps) n-units])]
       (loop [[t & ts] (range timesteps)
              ;; Save these values for use in backprop.
              state-input (m/zeros [batch-size timesteps n-units])
-             states (m/zeros [batch-size (inc timesteps) n-units])
              outputs (m/zeros [batch-size timesteps input-dim])
              ;; Set last time step to zero for calculation of the state_input at time step zero
              states (sel/set-sel states (sel/irange) -1 (m/zeros [batch-size n-units]))]
@@ -161,7 +166,9 @@
                   [grad-U grad-W grad-wrt-state] (f (->> t
                                                          inc
                                                          ;; in python np.arange
-                                                         (->> bptt-trunc (- t) (max 0) range)
+                                                         ;; FIXME: failed nested ->>
+                                                         ;; (->> bptt-trunc (- t) (max 0) range)
+                                                         (range (max 0 (- t bptt-trunc)))
                                                          reverse)
                                                     grad-U
                                                     grad-W
@@ -232,30 +239,21 @@
                                       padding)]
       (merge this
              (when trainable
-               ;; FIXME: reshape param
                ;; Take dot product between column shaped accum. gradient and column shape
                ;; layer input to determine the gradient at the layer with respect to layer weights
                (let [grad-w (reshape (dot accum-grad (transpose X-col))
                                      (shape W))
-                     ;; FIXME: sum param
                      ;; The gradient with respect to bias terms is the sum similarly to in Dense layer
-                     grad-w0 (sum accum-grad 1 true)
+                     grad-w0 (m/sum accum-grad 1 true)]
                      {:W (update W-opt W grad-w)
-                      :w0 (update w0-opt w0 grad-w0)}]))
+                      :w0 (update w0-opt w0 grad-w0)}))
              {:accum-grad accum-grad})))
   (output-shape [this]
     (let [[channels height width] input-shape
-          [pad-h padw] (determine-padding filter-shape padding)
-          output-height (-> height
-                            (+ (sum pad-h))
-                            (- (filter-shape 0))
-                            (/ stride)
-                            (+ 1))
-          output-width (-> width
-                           (+ (sum pad-w))
-                           (- (filter-shape 1))
-                           (/ stride)
-                           (+ 1))]
+          [pad-h pad-w] (determine-padding filter-shape padding)
+          output-fn #(-> %1 (+ (ms/sum %2)) (- (filter-shape 0)) (/ stride) (+ 1))
+          output-height (output-fn height pad-h)
+          output-width (output-fn width pad-w)]
       [n-filters (int output-height) (int output-width)])))
 
 
@@ -291,7 +289,7 @@
    (let [[batch-size channels height width] images-shape
          [filter-height filter-width] filter-shape
          [pad-h pad-w] padding
-         out-fn #(-> %1 (+ (sum %2)) (- %3) (/ stride) (+ 1) int)
+         out-fn #(-> %1 (+ (ms/sum %2)) (- %3) (/ stride) (+ 1) int)
          out-height (out-fn height pad-h filter-height)
          out-width (out-fn width pad-w filter-width)
          i0 (repeat (range filter-height) filter-width)
@@ -320,12 +318,17 @@
          images-padded (pad images [[0 0] [0 0] pad-h pad-w] "constant")
          ;; Calculate the indices where the dot products are to be applied between weights
          ;; and the image
-         [k i j] (get-im2col-indices (shape images) filter-shape [pad-h pad-w] stride)
+         [k i j] (get-im2col-indices (shape images)
+                                     filter-shape
+                                     [pad-h pad-w]
+                                     stride)
          ;; Get content from image at those indices
          cols (sel/sel images-padded (sel/irange) k i j)
          channels ((shape images) 1)
          ;; Reshape content into column shape
-         cols (reshape (transpose cols 1 2 0) (* filter-height filter-width channels) -1)]
+         cols (reshape (transpose cols 1 2 0)
+                       (* filter-height filter-width channels)
+                       -1)]
      cols)))
 
 ;; Method which turns the column shaped input to image shape.
@@ -337,17 +340,16 @@
   ([cols images-shape filter-shape stride output-shape]
    (let [[batch-size channels height width] images-shape
          [pad-h pad-w] (determine-padding filter-shape output-shape)
-         height-padded (+ height (sum pad-h))
-         width-padded (+ width (sum pad-w))
+         height-padded (+ height (ms/sum pad-h))
+         width-padded (+ width (ms/sum pad-w))
          images-padded (m/empty [batch-size channels height-padded width-padded])
          ;; Calculate the indices where the dot products are applied between weights
          ;; and the image
          [k i j] (get-im2col-indices images-shape filter-shape [pad-h pad-w] stride)
          cols (reshape cols (* channels (m/prod filter-shape)) -1 batch-size)
          cols (transpose cols 2 0 1)
-         ;; FIXME: fn np.add.at and slice
          ;; Add column content to the images at the indices
-         images-padded (np.add.at images-padded [(slice nil) k i j] cols)]
+         images-padded (m/add-at images-padded [(sel/irange) k i j] cols)]
      ;; Return image without padding
      (sel/sel images-padded
               (sel/irange)

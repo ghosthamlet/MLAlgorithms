@@ -13,6 +13,11 @@
 (defmacro gety [xs x]
   `(sel/sel ~xs (sel/irange) ~x))
 
+(defmacro updatexs-in [xs ks f & args]
+  `(sel/set-sel ~xs
+                ~@ks
+                (f (sel/sel ~xs ~@ks) ~@args)))
+
 (defn uniform [low high size]
    (+ low
       (* (- high low)
@@ -87,3 +92,26 @@
 
 (defn empty [shape]
   (reshape [] shape))
+
+(defn tile [xs reps])
+
+(defn pad [xs pad-width mode & args])
+
+;; use macro not fn just for ~@indices
+(defmacro add-at [xs indices vs]
+  `(if (= Long (type ~indices))
+    (updatexs-in ~xs ~indices + ~vs)
+    (let [freqs# (frequencies ~indices)]
+      ;; TODO: accumulated results for elements that are indexed more than once like np.add.at
+      (updatexs-in ~xs ~@indices + ~vs))))
+
+;; clojure.core.matrix.stats/sum enhanced
+(defn sum [xs axis keepdims]
+  (case axis
+    0 (if keepdims
+        [(apply map (fn [& xx] (apply + xx)) xs)]
+        (apply map (fn [& xx] (apply + xx)) xs))
+    1 (if keepdims
+        (map (fn [& xx] [(apply + xx)]) xs)
+        (map (fn [& xx] (apply + xx)) xs))
+    (not-implement)))
