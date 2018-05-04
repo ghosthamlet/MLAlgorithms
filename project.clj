@@ -3,5 +3,6 @@
   :url "https://github.com/ghosthamlet/MLAlgorithms"
   :license  {:name "Eclipse Public License"
              :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :plugins [[lein-kibit "0.1.6"]]
   :dependencies  [[org.clojure/clojure "1.9.0"]
                   [net.mikera/core.matrix "0.62.0"]])

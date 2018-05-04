@@ -1,4 +1,4 @@
 (ns mlalgorithms.utils.error)
 
-(defmacro not-implement []
-  `(throw (Exception. "Not implement")))
+(defmacro not-implement [& msgs]
+  `(throw (Exception. (str "Not implement: " ~@msgs))))

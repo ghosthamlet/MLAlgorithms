@@ -18,7 +18,7 @@
          column-to-image)
 
 ;; tmp
-(declare grad tile pad)
+(declare grad)
 
 (def activation-functions {})
 
@@ -87,14 +87,14 @@
           ulimit (/ 1 (sqrt input-dim))
           vlimit (/ 1 (sqrt n-units))]
       (assoc this
-            :U (m/uniform (- ulimit) ulimit [n-units input-dim])
-            :V (m/uniform (- vlimit) vlimit [input-dim n-units])
-            :W (m/uniform (- vlimit) vlimit [n-units n-units])
-            :U-opt optimizer
-            :V-opt optimizer
-            :W-opt optimizer
-            :activation ((activation activation-functions))
-            :trainable true)))
+             :U (m/uniform (- ulimit) ulimit [n-units input-dim])
+             :V (m/uniform (- vlimit) vlimit [input-dim n-units])
+             :W (m/uniform (- vlimit) vlimit [n-units n-units])
+             :U-opt optimizer
+             :V-opt optimizer
+             :W-opt optimizer
+             :activation ((activation activation-functions))
+             :trainable true)))
 
   (parameters [this]
     (+ (m/prod (shape U))
@@ -151,36 +151,36 @@
              ;; The gradient w.r.t the layer input.
              ;; Will be passed on to the previous layer in the network
              accum-grad-next (m/zeros-like accum-grad)]
-          (if (empty? ts)
-            (assoc this
-                   :U (update U-opt U grad-U)
-                   :V (update V-opt V grad-V)
-                   :W (update W-opt W grad-W)
-                   :accum-grad accum-grad-next)
-            (let [grad-wrt-state (* (dot (m/gety accum-grad t) V)
-                                    (grad activation (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
-                  ;; Gradient w.r.t the layer input
-                  accum-grad-next (m/sety accum-grad-next t (dot grad-wrt-state U))
-                  ;; Update gradient w.r.t W and U by backprop. from time step t for at most
-                  ;; self.bptt_trunc number of time steps
-                  [grad-U grad-W grad-wrt-state] (f (->> t
-                                                         inc
-                                                         ;; in python np.arange
-                                                         ;; FIXME: failed nested ->>
-                                                         ;; (->> bptt-trunc (- t) (max 0) range)
-                                                         (range (max 0 (- t bptt-trunc)))
-                                                         reverse)
-                                                    grad-U
-                                                    grad-W
-                                                    grad-wrt-state)]
-              (recur ts
-                     grad-U
-                     ;; Update gradient w.r.t V at time step t
-                     (+ grad-V
-                        (dot (transpose (m/gety accum-grad t))
-                             (m/gety states t)))
-                     grad-W
-                     grad-wrt-state))))))
+        (if (empty? ts)
+          (assoc this
+                 :U (update U-opt U grad-U)
+                 :V (update V-opt V grad-V)
+                 :W (update W-opt W grad-W)
+                 :accum-grad accum-grad-next)
+          (let [grad-wrt-state (* (dot (m/gety accum-grad t) V)
+                                  (grad activation (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
+                ;; Gradient w.r.t the layer input
+                accum-grad-next (m/sety accum-grad-next t (dot grad-wrt-state U))
+                ;; Update gradient w.r.t W and U by backprop. from time step t for at most
+                ;; self.bptt_trunc number of time steps
+                [grad-U grad-W grad-wrt-state] (f (->> t
+                                                       inc
+                                                       ;; in python np.arange
+                                                       ;; FIXME: failed nested ->>
+                                                       ;; (->> bptt-trunc (- t) (max 0) range)
+                                                       (range (max 0 (- t bptt-trunc)))
+                                                       reverse)
+                                                  grad-U
+                                                  grad-W
+                                                  grad-wrt-state)]
+            (recur ts
+                   grad-U
+                   ;; Update gradient w.r.t V at time step t
+                   (+ grad-V
+                      (dot (transpose (m/gety accum-grad t))
+                           (m/gety states t)))
+                   grad-W
+                   grad-wrt-state))))))
 
   (output-shape [this]
     input-shape))
@@ -215,20 +215,20 @@
           ;; (enables dot product between input and weights)
           X-col* (image-to-column X filter-shape stride padding)
           ;; Turn weights into column shape
-          W-col* (reshape W [n-filters -1])
+          W-col* (m/reshape W [n-filters -1])
           ;; Calculate output
           output (+ (dot W-col* X-col*) w0)
           ;; Reshape into (n_filters, out_height, out_width, batch_size)
-          output (reshape output (+ (output-shape this) [batch-size]))]
+          output (m/reshape output (+ (output-shape this) [batch-size]))]
       (assoc this
              :layer-input X
              :X-col X-col*
              :W-col W-col*
              ;; Redistribute axises so that batch size comes first
-             :outputs (transpose output 3 0 1 2))))
+             :outputs (transpose output [3 0 1 2]))))
 
   (backward-pass [this accum-grad]
-    (let [accum-grad (reshape (transpose accum-grad [1 2 3 0]) n-filters -1) ;; Reshape accumulated gradient into column shape
+    (let [accum-grad (m/reshape (transpose accum-grad [1 2 3 0]) [n-filters -1]) ;; Reshape accumulated gradient into column shape
           ;; Recalculate the gradient which will be propogated back to prev. layer
           accum-grad (dot (transpose W-col) accum-grad)
           ;; Reshape from column shape to image shape
@@ -241,12 +241,12 @@
              (when trainable
                ;; Take dot product between column shaped accum. gradient and column shape
                ;; layer input to determine the gradient at the layer with respect to layer weights
-               (let [grad-w (reshape (dot accum-grad (transpose X-col))
-                                     (shape W))
+               (let [grad-w (m/reshape (dot accum-grad (transpose X-col))
+                                       (shape W))
                      ;; The gradient with respect to bias terms is the sum similarly to in Dense layer
                      grad-w0 (m/sum accum-grad 1 true)]
-                     {:W (update W-opt W grad-w)
-                      :w0 (update w0-opt w0 grad-w0)}))
+                 {:W (update W-opt W grad-w)
+                  :w0 (update w0-opt w0 grad-w0)}))
              {:accum-grad accum-grad})))
   (output-shape [this]
     (let [[channels height width] input-shape
@@ -292,17 +292,18 @@
          out-fn #(-> %1 (+ (ms/sum %2)) (- %3) (/ stride) (+ 1) int)
          out-height (out-fn height pad-h filter-height)
          out-width (out-fn width pad-w filter-width)
-         i0 (repeat (range filter-height) filter-width)
-         i0 (tile i0 channels)
-         i1 (* stride (repeat (range out-height) out-width))
-         j0 (tile (range filter-width) (* filter-height channels))
-         j1 (* stride (tile (range out-width) out-height))
-         i (+ (reshape i0 -1 1)
-              (reshape i1 1 -1))
-         j (+ (reshape j0 -1 1)
-              (reshape j1 1 -1))
-         k (reshape (repeat (range channels)
-                            (* filter-height filter-width)) -1 1)]
+         i0 (m/repeat (range filter-height) filter-width)
+         i0 (m/tile i0 channels)
+         i1 (* stride (m/repeat (range out-height) out-width))
+         j0 (m/tile (range filter-width) (* filter-height channels))
+         j1 (* stride (m/tile (range out-width) out-height))
+         i (+ (m/reshape i0 [-1 1])
+              (m/reshape i1 [1 -1]))
+         j (+ (m/reshape j0 [-1 1])
+              (m/reshape j1 [1 -1]))
+         k (m/reshape (m/repeat (range channels)
+                                (* filter-height filter-width))
+                      [-1 1])]
      [k i j])))
 
 ;; Method which turns the image shaped input to column shape.
@@ -315,20 +316,16 @@
    (let [[filter-height filter-width] filter-shape
          [pad-h pad-w] (determine-padding filter-shape output-shape)
          ;; Add padding to the image
-         images-padded (pad images [[0 0] [0 0] pad-h pad-w] "constant")
+         images-padded (m/pad images [[0 0] [0 0] pad-h pad-w] "constant")
          ;; Calculate the indices where the dot products are to be applied between weights
          ;; and the image
-         [k i j] (get-im2col-indices (shape images)
-                                     filter-shape
-                                     [pad-h pad-w]
-                                     stride)
+         [k i j] (get-im2col-indices (shape images) filter-shape [pad-h pad-w] stride)
          ;; Get content from image at those indices
          cols (sel/sel images-padded (sel/irange) k i j)
          channels ((shape images) 1)
          ;; Reshape content into column shape
-         cols (reshape (transpose cols 1 2 0)
-                       (* filter-height filter-width channels)
-                       -1)]
+         cols (m/reshape (transpose cols [1 2 0])
+                         [(* filter-height filter-width channels) -1])]
      cols)))
 
 ;; Method which turns the column shaped input to image shape.
@@ -346,8 +343,8 @@
          ;; Calculate the indices where the dot products are applied between weights
          ;; and the image
          [k i j] (get-im2col-indices images-shape filter-shape [pad-h pad-w] stride)
-         cols (reshape cols (* channels (m/prod filter-shape)) -1 batch-size)
-         cols (transpose cols 2 0 1)
+         cols (m/reshape cols [(* channels (m/prod filter-shape)) -1 batch-size])
+         cols (transpose cols [2 0 1])
          ;; Add column content to the images at the indices
          images-padded (m/add-at images-padded [(sel/irange) k i j] cols)]
      ;; Return image without padding
