@@ -3,7 +3,7 @@
 (defmacro defpy
   "(defpy test [a (b 10) (c 20)] (+ a b c))
   (test 1 :b 2 :c 3)"
-  [name all-args body]
+  [name all-args & body]
   (let [require-args (filter #(symbol? %) all-args)
         kwargs (remove #(symbol? %) all-args)
         args (reduce (fn [acc kw]
@@ -19,7 +19,7 @@
                       :or {}}
                      kwargs)]
     `(defn ~name [~@require-args & ~args]
-       ~body)))
+       ~@body)))
 
 #_(defmacro defpy
     "(defpy test [a (b 10) c] (+ a b c))

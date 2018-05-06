@@ -157,4 +157,4 @@
         (map (fn [& xx] (apply + xx)) xs))
     (not-implement)))
 
-(defn repeat [xs times])
+(defn np-repeat [xs times])

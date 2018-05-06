@@ -10,6 +10,7 @@
             [clojure.core.matrix.selection :as sel]
             [mlalgorithms.utils.util :refer :all]
             [mlalgorithms.utils.matrix :as m]
+            [mlalgorithms.utils.code :refer :all]
             [mlalgorithms.utils.error :refer :all]))
 
 (declare determine-padding
@@ -109,7 +110,10 @@
              state-input (m/zeros [batch-size timesteps n-units])
              outputs (m/zeros [batch-size timesteps input-dim])
              ;; Set last time step to zero for calculation of the state_input at time step zero
-             states (sel/set-sel states (sel/irange) -1 (m/zeros [batch-size n-units]))]
+             states (sel/set-sel states
+                                 (sel/irange)
+                                 -1
+                                 (m/zeros [batch-size n-units]))]
         (if (empty? ts)
           (assoc this
                  :layer-input X
@@ -158,9 +162,12 @@
                  :W (update W-opt W grad-W)
                  :accum-grad accum-grad-next)
           (let [grad-wrt-state (* (dot (m/gety accum-grad t) V)
-                                  (grad activation (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
+                                  (grad activation
+                                        (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
                 ;; Gradient w.r.t the layer input
-                accum-grad-next (m/sety accum-grad-next t (dot grad-wrt-state U))
+                accum-grad-next (m/sety accum-grad-next
+                                        t
+                                        (dot grad-wrt-state U))
                 ;; Update gradient w.r.t W and U by backprop. from time step t for at most
                 ;; self.bptt_trunc number of time steps
                 [grad-U grad-W grad-wrt-state] (f (->> t
@@ -213,13 +220,17 @@
     (let [[batch-size channels height width] (shape X)
           ;; Turn image shape into column shape 
           ;; (enables dot product between input and weights)
-          X-col* (image-to-column X filter-shape stride padding)
+          X-col* (image-to-column X
+                                  filter-shape
+                                  stride
+                                  :output-shape padding)
           ;; Turn weights into column shape
           W-col* (m/reshape W [n-filters -1])
           ;; Calculate output
           output (+ (dot W-col* X-col*) w0)
           ;; Reshape into (n_filters, out_height, out_width, batch_size)
-          output (m/reshape output (+ (output-shape this) [batch-size]))]
+          output (m/reshape output
+                            (+ (output-shape this) [batch-size]))]
       (assoc this
              :layer-input X
              :X-col X-col*
@@ -228,7 +239,8 @@
              :outputs (transpose output [3 0 1 2]))))
 
   (backward-pass [this accum-grad]
-    (let [accum-grad (m/reshape (transpose accum-grad [1 2 3 0]) [n-filters -1]) ;; Reshape accumulated gradient into column shape
+    (let [accum-grad (m/reshape (transpose accum-grad [1 2 3 0])
+                                [n-filters -1]) ;; Reshape accumulated gradient into column shape
           ;; Recalculate the gradient which will be propogated back to prev. layer
           accum-grad (dot (transpose W-col) accum-grad)
           ;; Reshape from column shape to image shape
@@ -236,7 +248,7 @@
                                       (shape layer-input)
                                       filter-shape
                                       stride
-                                      padding)]
+                                      :output-shape padding)]
       (merge this
              (when trainable
                ;; Take dot product between column shaped accum. gradient and column shape
@@ -248,10 +260,16 @@
                  {:W (update W-opt W grad-w)
                   :w0 (update w0-opt w0 grad-w0)}))
              {:accum-grad accum-grad})))
+
   (output-shape [this]
     (let [[channels height width] input-shape
-          [pad-h pad-w] (determine-padding filter-shape padding)
-          output-fn #(-> %1 (+ (ms/sum %2)) (- (filter-shape 0)) (/ stride) (+ 1))
+          [pad-h pad-w] (determine-padding filter-shape
+                                           :output-shape padding)
+          output-fn #(-> %1
+                         (+ (ms/sum %2))
+                         (- (filter-shape 0))
+                         (/ stride)
+                         (+ 1))
           output-height (output-fn height pad-h)
           output-width (output-fn width pad-w)]
       [n-filters (int output-height) (int output-width)])))
@@ -262,94 +280,111 @@
 
 ;; Method which calculates the padding based on the specified output shape and the
 ;; shape of the filters
-(defn determine-padding
-  ([filter-shape]
-   (determine-padding filter-shape "same"))
-  ([filter-shape output-shape]
-   (if (= "valid" output-shape)
-     ;; No padding
-     [[0 0] [0 0]]
-     ;; Pad so that the output shape is the same as input shape (given that stride=1)
-     (let [[filter-height filter-width] filter-shape
-           ;; Derived from:
-           ;; output_height = (height + pad_h - filter_height) / stride + 1
-           ;; In this case output_height = height and stride = 1. This gives the
-           ;; expression for the padding below.
-           pad-fn #(-> %1 (- 1) (/ 2) %2 int)
-           pad-h1 (pad-fn filter-height floor)
-           pad-h2 (pad-fn filter-height ceil)
-           pad-w1 (pad-fn filter-width floor)
-           pad-w2 (pad-fn filter-width ceil)]
-       [[pad-h1 pad-h2] [pad-w1 pad-w2]]))))
+(defpy determine-padding
+  [filter-shape (output-shape "same")]
+  (if (= "valid" output-shape)
+    ;; No padding
+    [[0 0] [0 0]]
+    ;; Pad so that the output shape is the same as input shape (given that stride=1)
+    (let [[filter-height filter-width] filter-shape
+          ;; Derived from:
+          ;; output_height = (height + pad_h - filter_height) / stride + 1
+          ;; In this case output_height = height and stride = 1. This gives the
+          ;; expression for the padding below.
+          pad-fn #(-> %1 (- 1) (/ 2) %2 int)
+          pad-h1 (pad-fn filter-height floor)
+          pad-h2 (pad-fn filter-height ceil)
+          pad-w1 (pad-fn filter-width floor)
+          pad-w2 (pad-fn filter-width ceil)]
+      [[pad-h1 pad-h2] [pad-w1 pad-w2]])))
 
-(defn get-im2col-indices
-  ([images-shape filter-shape padding]
-   (get-im2col-indices images-shape filter-shape padding 1))
-  ([images-shape filter-shape padding stride]
-   (let [[batch-size channels height width] images-shape
-         [filter-height filter-width] filter-shape
-         [pad-h pad-w] padding
-         out-fn #(-> %1 (+ (ms/sum %2)) (- %3) (/ stride) (+ 1) int)
-         out-height (out-fn height pad-h filter-height)
-         out-width (out-fn width pad-w filter-width)
-         i0 (m/repeat (range filter-height) filter-width)
-         i0 (m/tile i0 channels)
-         i1 (* stride (m/repeat (range out-height) out-width))
-         j0 (m/tile (range filter-width) (* filter-height channels))
-         j1 (* stride (m/tile (range out-width) out-height))
-         i (+ (m/reshape i0 [-1 1])
-              (m/reshape i1 [1 -1]))
-         j (+ (m/reshape j0 [-1 1])
-              (m/reshape j1 [1 -1]))
-         k (m/reshape (m/repeat (range channels)
-                                (* filter-height filter-width))
-                      [-1 1])]
-     [k i j])))
+(defpy get-im2col-indices
+  [images-shape filter-shape padding (stride 1)]
+  (let [[batch-size channels height width] images-shape
+        [filter-height filter-width] filter-shape
+        [pad-h pad-w] padding
+        out-fn #(-> %1
+                    (+ (ms/sum %2))
+                    (- %3)
+                    (/ stride)
+                    (+ 1)
+                    int)
+        out-height (out-fn height
+                           pad-h
+                           filter-height)
+        out-width (out-fn width
+                          pad-w
+                          filter-width)
+        i0 (m/repeat (range filter-height)
+                     filter-width)
+        i0 (m/tile i0 channels)
+        i1 (* stride
+              (m/repeat (range out-height) out-width))
+        j0 (m/tile (range filter-width)
+                   (* filter-height channels))
+        j1 (* stride
+              (m/tile (range out-width) out-height))
+        i (+ (m/reshape i0 [-1 1])
+             (m/reshape i1 [1 -1]))
+        j (+ (m/reshape j0 [-1 1])
+             (m/reshape j1 [1 -1]))
+        k (m/reshape (m/repeat (range channels)
+                               (* filter-height filter-width))
+                     [-1 1])]
+    [k i j]))
 
 ;; Method which turns the image shaped input to column shape.
 ;; Used during the forward pass.
 ;; Reference: CS231n Stanford
-(defn image-to-column
-  ([images filter-shape stride]
-   (image-to-column images filter-shape stride "same"))
-  ([images filter-shape stride output-shape]
-   (let [[filter-height filter-width] filter-shape
-         [pad-h pad-w] (determine-padding filter-shape output-shape)
-         ;; Add padding to the image
-         images-padded (m/pad images [[0 0] [0 0] pad-h pad-w] "constant")
-         ;; Calculate the indices where the dot products are to be applied between weights
-         ;; and the image
-         [k i j] (get-im2col-indices (shape images) filter-shape [pad-h pad-w] stride)
-         ;; Get content from image at those indices
-         cols (sel/sel images-padded (sel/irange) k i j)
-         channels ((shape images) 1)
-         ;; Reshape content into column shape
-         cols (m/reshape (transpose cols [1 2 0])
-                         [(* filter-height filter-width channels) -1])]
-     cols)))
+(defpy image-to-column
+  [images filter-shape stride (output-shape "same")]
+  (let [[filter-height filter-width] filter-shape
+        [pad-h pad-w] (determine-padding filter-shape
+                                         :output-shape output-shape)
+        ;; Add padding to the image
+        images-padded (m/pad images
+                             [[0 0] [0 0] pad-h pad-w]
+                             "constant")
+        ;; Calculate the indices where the dot products are to be applied between weights
+        ;; and the image
+        [k i j] (get-im2col-indices (shape images)
+                                    filter-shape
+                                    [pad-h pad-w]
+                                    :stride stride)
+        ;; Get content from image at those indices
+        cols (sel/sel images-padded (sel/irange) k i j)
+        channels ((shape images) 1)
+        ;; Reshape content into column shape
+        cols (m/reshape (transpose cols [1 2 0])
+                        [(* filter-height filter-width channels) -1])]
+    cols))
 
 ;; Method which turns the column shaped input to image shape.
 ;; Used during the backward pass.
 ;; Reference: CS231n Stanford
-(defn column-to-image
-  ([cols images-shape filter-shape stride]
-   (column-to-image cols images-shape filter-shape stride "same"))
-  ([cols images-shape filter-shape stride output-shape]
-   (let [[batch-size channels height width] images-shape
-         [pad-h pad-w] (determine-padding filter-shape output-shape)
-         height-padded (+ height (ms/sum pad-h))
-         width-padded (+ width (ms/sum pad-w))
-         images-padded (m/empty [batch-size channels height-padded width-padded])
-         ;; Calculate the indices where the dot products are applied between weights
-         ;; and the image
-         [k i j] (get-im2col-indices images-shape filter-shape [pad-h pad-w] stride)
-         cols (m/reshape cols [(* channels (m/prod filter-shape)) -1 batch-size])
-         cols (transpose cols [2 0 1])
-         ;; Add column content to the images at the indices
-         images-padded (m/add-at images-padded [(sel/irange) k i j] cols)]
-     ;; Return image without padding
-     (sel/sel images-padded
-              (sel/irange)
-              (sel/irange)
-              (sel/irange (pad-h 0) (+ height (pad-h 0)))
-              (sel/irange (pad-w 0) (+ width (pad-w 0)))))))
+(defpy column-to-image
+  [cols images-shape filter-shape stride (output-shape "same")]
+  (let [[batch-size channels height width] images-shape
+        [pad-h pad-w] (determine-padding filter-shape
+                                         :output-shape output-shape)
+        height-padded (+ height (ms/sum pad-h))
+        width-padded (+ width (ms/sum pad-w))
+        images-padded (m/empty [batch-size channels height-padded width-padded])
+        ;; Calculate the indices where the dot products are applied between weights
+        ;; and the image
+        [k i j] (get-im2col-indices images-shape
+                                    filter-shape
+                                    [pad-h pad-w]
+                                    :stride stride)
+        cols (m/reshape cols [(* channels (m/prod filter-shape)) -1 batch-size])
+        cols (transpose cols [2 0 1])
+        ;; Add column content to the images at the indices
+        images-padded (m/add-at images-padded
+                                [(sel/irange) k i j]
+                                cols)]
+    ;; Return image without padding
+    (sel/sel images-padded
+             (sel/irange)
+             (sel/irange)
+             (sel/irange (pad-h 0) (+ height (pad-h 0)))
+             (sel/irange (pad-w 0) (+ width (pad-w 0))))))
