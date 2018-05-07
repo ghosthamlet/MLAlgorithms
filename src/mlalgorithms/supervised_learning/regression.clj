@@ -8,6 +8,7 @@
             [clojure.core.matrix.random :as r]
             [clojure.core.matrix.operators :refer :all]
             [clojure.core.matrix.linear :as l]
+            [mlalgorithms.protocols :refer :all]
             [mlalgorithms.utils.util :refer :all]
             [mlalgorithms.utils.matrix :as m]
             [mlalgorithms.utils.error :refer :all]))
@@ -92,10 +93,6 @@
 (defn reg-predict [model X]
   ;; Insert constant ones for bias weights
   (dot (m/insert X 0 1 :axis 1) (:w model)))
-
-(defprotocol PModel
-  (fit [this X y])
-  (predict [this X]))
 
 (defrecord LinearRegression
     [n-iterations learning-rate regularization
