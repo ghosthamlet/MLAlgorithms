@@ -54,3 +54,6 @@
                        i
                        (m/prod (m/gety xs (first combinations))
                                1)))))))
+
+(defn accuracy-score [y y-pred]
+  (/ (m/sum (= y y-pred) :axis 0) (count y)))
