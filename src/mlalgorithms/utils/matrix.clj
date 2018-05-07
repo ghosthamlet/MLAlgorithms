@@ -144,7 +144,16 @@
      (not-implement "add-at by scalar")
      (let [freqs# (frequencies ~indices)]
        ;; TODO: accumulated results for elements that are indexed more than once like np.add.at
-       (updatexs-in ~xs ~indices + ~@vs))))
+       (updatexs-in ~xs ~indices + ~vs))))
+
+#_(defn add-at [xs indices vs]
+  (if (= Long (type ~indices))
+    ;; (updatexs-in ~xs ~indices + ~vs)
+    (not-implement "add-at by scalar")
+    (let [freqs# (frequencies ~indices)]
+      ;; TODO: accumulated results for elements that are indexed more than once like np.add.at
+      ;; How to nest unquote-splicing?
+      `(~(updatexs-in xs ~@indices + ~@vs)))))
 
 ;; clojure.core.matrix.stats/sum enhanced
 (defn sum [xs axis keepdims]

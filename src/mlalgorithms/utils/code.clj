@@ -1,8 +1,13 @@
-(ns mlalgorithms.utils.code)
+(ns mlalgorithms.utils.code
+  (:require '[clojure.string :as s]))
 
 (defmacro defpy
-  "(defpy test [a (b 10) (c 20)] (+ a b c))
-  (test 1 :b 2 :c 3)"
+  "
+  (defpy test [a (b 10) (c 20)]
+    (+ a b c))
+
+  (test 1 :b 2 :c 3)
+  "
   [name all-args & body]
   (let [require-args (filter #(symbol? %) all-args)
         kwargs (remove #(symbol? %) all-args)
@@ -49,23 +54,26 @@
              (throw (Exception. (str "Param :" a# " required")))))
          ~body)))
 
-(defmacro gen-record
+(defmacro defpyrecord
   "
-  (gen-record RNN [alpha (lr 0) w]
+  (defpyrecord RNN [alpha (lr 0) (w)]
       Layer
       (forword [])
 
       Model
       (fit []))
+
+  (make-rnn 1 :lr 10 :w 0)
   "
   [name fields & specs]
-  (let [keys []
-        as []]
+  (let [keys (vec (map #(if (symbol? %)
+                          %
+                          (first %))
+                       fields))]
     `(do
        (defrecord ~name ~keys
          ~@specs)
 
-       (defn ~(symbol (str "make-" (s/lower-case name)))
-         [& {:keys ~keys
-             :as ~as}]
-         (~(symbol (str name ".")) ~keys)))))
+       (defpy ~(symbol (str "make-" (s/lower-case name)))
+         ~fields
+         (~(symbol (str name ".")) ~@keys)))))
