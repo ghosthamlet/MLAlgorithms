@@ -13,7 +13,8 @@
             [mlalgorithms.utils.code :refer :all]
             [mlalgorithms.utils.error :refer :all]))
 
-(declare determine-padding
+(declare activation-functions
+         determine-padding
          get-im2col-indices
          image-to-column
          column-to-image)
@@ -21,9 +22,8 @@
 ;; tmp
 (declare grad)
 
-(def activation-functions {})
-
 (defprotocol Layer
+  (init [this])
   (initialize [this optimizer])
   (set-input-shape [this shape])
   (layer-name [this])
@@ -72,8 +72,7 @@
                         ;; Calculated based on the weights used during the forward pass
                         {:accum-grad (dot accum-grad (transpose W))}))
 
-  (output-shape [this]
-                [n-units]))
+  (output-shape [this] [n-units]))
 
 (defpyrecord RNN
   [n-units (input-shape)
@@ -192,8 +191,7 @@
                                 grad-W
                                 grad-wrt-state))))))
 
-  (output-shape [this]
-                input-shape))
+  (output-shape [this] input-shape))
 
 (defpyrecord Conv2D
   [n-filters filter-shape
@@ -277,9 +275,319 @@
                       output-width (output-fn width pad-w)]
                   [n-filters (int output-height) (int output-width)])))
 
+(defpyrecord BatchNormalization
+  [(momentum 0.99) (trainable true)
+   (eps 0.01) (running-mean)
+   (running-var) (gamma)
+   (beta) (gamma-opt)
+   (beta-opt) (X-centered)
+   (stddev-inv) (accum-grad)
+   (output)]
+  Layer
+  (initialize [this optimizer]
+              (assoc this
+                     :gamma (m/ones input-shape)
+                     :beta (m/zeros input-shape)
+                     :gamma-opt optimizer
+                     :beta-opt optimizer))
 
+  (parameters [this]
+              (+ (m/prod (shape gamma))
+                 (m/prod (shape beta))))
 
+  (forward-pass [this X training]
+                (let [mean (ms/mean X)
+                      var (ms/variance X)]
+                  (merge this
+                         ;; Initialize running mean and variance if first run
+                         (when-not running-mean
+                           {:running-mean mean
+                            :running-var var})
+                         (when (and training trainable)
+                           {:running-mean (+ (* momentum running-mean)
+                                             (* (- 1 momentum) mean))
+                            :running-var (+ (* momentum running-var)
+                                            (* (- 1 momentum) var))})
+                         (let [X-centered (- X mean)
+                               stddev-inv (/ 1 (sqrt (+ var eps)))
+                               X-norm (* X-centered stddev-inv)]
+                           ;; Statistics saved for backward pass
+                           {:X-centered X-centered
+                            :stddev-inv stddev-inv
+                            :output (+ (* gamma X-norm) beta)}))))
 
+  (backward-pass [this accum-grad]
+                 (let []
+                   (merge this
+                          (when trainable
+                            (let [X-norm (* X-centered stddev-inv)
+                                  grad-gamma (m/sum (* accum-grad X-norm))
+                                  grad-beta (m/sum accum-grad)]
+                              {:gamma (update gamma-opt gamma grad-gamma)
+                               :beta (update beta-opt beta grad-beta)}))
+                          (let [batch-size ((shape accum-grad) 0)]
+                            {:accum-grad (->> X-centered
+                                              (* accum-grad)
+                                              m/sum
+                                              (* X-centered
+                                                 (pow stddev-inv 2))
+                                              (- (* batch-size accum-grad)
+                                                 (m/sum accum-grad))
+                                              (* (/ 1 batch-size)
+                                                 gamma
+                                                 stddev-inv))}))))
+
+  (output-shape [this] input-shape))
+
+(defpy pooling-forward [pooling-layer X (training true)]
+  (let [[batch-size channels height width] (shape X)
+        [_ out-height out-width] (output-shape pooling-layer)
+        X* (m/reshape X [(* batch-size channels) 1 height width])
+        X-col* (image-to-column X*
+                                (:pool-shape pooling-layer)
+                                (:stride pooling-layer)
+                                (:padding pooling-layer))
+        [cache output] (pooling-forward-pass pooling-layer X-col*)
+        output (m/reshape output [out-height out-width batch-size channels])
+        output (transpose output 2 3 0 1)]
+    (assoc pooling-layer
+          :layer-input X
+          :cache cache
+          :output output)))
+
+(defpy pooling-backward [pooling-layer accum-grad]
+  (let [[batch-size _ _ _] (shape accum-grad)
+        [channels height width] (:input-shape pooling-layer)
+        ;; np ravel
+        accum-grad (m/ravel (transpose accum-grad 2 3 0 1))
+        accum-grad-col (pooling-backward-pass pooling-layer accum-grad)
+        accum-grad (column-to-image accum-grad-col [(* batch-size channels) 1 height width] (:pool-shape pooling-layer) (:stride pooling-layer) 0)
+        accum-grad (m/reshape accum-grad (+ [batch-size] (:input-shape pooling-layer)))]
+    (assoc pooling-layer
+           :accum-grad accum-grad)))
+
+(defpy pooling-output-shape [pooling-layer]
+  (let [[channels height width] (:input-shape pooling-layer)
+        out-fn #(+ (/ (- %1 ((:pool-shape pooling-layer) %2))
+                      (:stride pooling-layer))
+                   1)
+        out-height (out-fn height 0)
+        out-width (out-fn width 1)]
+    (assert! (= (% out-height 1) 0))
+    (assert! (= (% out-width 1) 0))
+    [channels (int out-height) (int out-width)]))
+
+(defprotocol PoolingLayer
+  (pooling-forward-pass [this X-col])
+  (pooling-backward-pass [this accum-grad]))
+
+(defpyrecord MaxPooling2D
+  [(pool-shape [2 2]) (stride 1)
+   (padding 0) (trainable true)
+   (layer-input) (accum-grad)
+   (input-shape) (cache)]
+  Layer
+  (forward-pass [this X trainable]
+                (pooling-forward this X :trainable trainable))
+
+  (backward-pass [this accum-grad]
+                 (pooling-backward this accum-grad))
+
+  (output-shape [this]
+                (pooling-output-shape this))
+
+  PoolingLayer
+  (pooling-forward-pass [this X-col]
+                        (let [arg-max (m/flatten (m/argmax X-col))
+                              output (sel/sel arg-max (range (size arg-max)))]
+                          [arg-max output]))
+
+  (pooling-backward-pass [this accum-grad]
+                         (let [accum-grad-col (m/zeros [(m/prod pool-shape)
+                                                        (size accum-grad)])
+                               arg-max cache]
+                           (sel/set-sel accum-grad-col
+                                        arg-max
+                                        (range (size accum-grad))
+                                        accum-grad))))
+
+(defpyrecord AveragePooling2D
+  [(pool-shape [2 2]) (stride 1)
+   (padding 0) (trainable true)
+   (layer-input) (accum-grad)
+   (input-shape) (cache)]
+  Layer
+  (forward-pass [this X trainable]
+                (pooling-forward this X :trainable trainable))
+
+  (backward-pass [this accum-grad]
+                 (pooling-backward this accum-grad))
+
+  (output-shape [this]
+                (pooling-output-shape this))
+
+  PoolingLayer
+  (pooling-forward-pass [this X-col]
+                        (let [output (ms/mean X-col)]
+                          [cache output]))
+
+  (pooling-backward-pass [this accum-grad]
+                         (let [accum-grad-col (m/zeros [(m/prod pool-shape)
+                                                        (size accum-grad)])]
+                           (m/sety accum-grad-col
+                                        (range (size accum-grad))
+                                        (* (/ 1. ((shape accum-grad-col) 0))
+                                           accum-grad)))))
+
+(defpy padding-forward [padding-layer X (training true)]
+  (assoc padding-layer
+         :output (m/pad X
+                        [[0 0] [0 0] (padding 0) (padding 1)]
+                        :mode "constant"
+                        :constant-values (:padding-value padding-layer))))
+
+(defpy padding-backward [padding-layer accum-grad]
+  (let [[pad-top pad-left] [(get-in (:padding padding-layer) [0 0])
+                            (get-in (:padding padding-layer) [1 0])]
+        [height width] [((:input-shape padding-layer) 1)
+                        ((:input-shape padding-layer) 2)]
+        accum-grad (sel/sel accum-grad
+                            (sel/irange)
+                            (sel/irange)
+                            (sel/irange pad-top (+ pad-top height))
+                            (sel/irange pad-left (+ pad-left width)))]
+    accum-grad))
+
+(defpy padding-output-shape [padding-layer]
+  (let [new-height (+ ((:input-shape padding-layer) 1)
+                      (m/sum ((:padding padding-layer) 0)))
+        new-width (+ ((:input-shape padding-layer) 2)
+                     (m/sum ((:padding padding-layer) 1)))]
+    [((:input-shape padding-layer) 0) new-height new-width]))
+
+(defpyrecord ZeroPadding2D
+  [(padding) (padding-value 0)
+   (trainable true) (output)
+   (accum-grad)]
+  Layer
+  (init [this]
+        (let [padding (if (int? (padding 0))
+                        [[(padding 0) (padding 0)] (padding 1)]
+                        padding)
+              padding (if (int? (padding 1))
+                        [(padding 0) [(padding 1) (padding 1)]])]
+          (assoc this
+                 :padding padding
+                 :padding-value 0)))
+
+  (forward-pass [this X trainable]
+                (padding-forward this X :trainable trainable))
+
+  (backward-pass [this accum-grad]
+                 (padding-backward this accum-grad))
+
+  (output-shape [this]
+                (padding-output-shape this)))
+
+(defpyrecord Flatten
+  [(input-shape) (prev-shape)
+   (trainable true) (output)
+   (accum-grad)]
+  Layer
+  (forward-pass [this X training]
+                (assoc this
+                       :prev-shape (shape X)
+                       :output (reshape X [((shape X) 0) -1])))
+
+  (backward-pass [this accum-grad]
+                 (assoc this
+                        :accum-grad (reshape accum-grad prev-shape)))
+
+  (output-shape [this]
+                [(m/prod input-shape)]))
+
+(defpyrecord UpSampling2D
+  [(size [2 2]) (input-shape)
+   (prev-shape) (trainable true)
+   (output) (accum-grad)]
+  Layer
+  (forward-pass [this X training]
+                (assoc this
+                       :prev-shape (shape X)
+                       :output (m/repeat (m/repeat X (size 0) :axis 2)
+                                         (size 1)
+                                         :axis 3)))
+
+  (backward-pass [this accum-grad]
+                 (assoc this
+                        :accum-grad "np: accum_grad[:, :, ::self.size[0], ::self.size[1]]"))
+
+  (output-shape [this]
+                (let [[channels height width] input-shape]
+                  [channels (* (size 0) height) (* (size 1) width)])))
+
+(defpyrecord Reshape
+  [shape (input-shape)
+   (prev-shape) (trainable true)
+   (output) (accum-grad)]
+  Layer
+  (forward-pass [this X training]
+                (assoc this
+                       :prev-shape (shape X)
+                       :output (reshape X (+ [((shape X) 0)] shape))))
+
+  (backward-pass [this accum-grad]
+                 (assoc this
+                        :accum-grad (reshape accum-grad prev-shape)))
+
+  (output-shape [this] shape))
+
+(defpyrecord Dropout
+  [(p 0.2) (mask*)
+   (input-shape) (n-units)
+   (pass-through) (trainable)
+   (output) (accum-grad)]
+  Layer
+  (forward-pass [this X training]
+                (let [c (- 1 p)]
+                  (merge this
+                         (if training
+                           (let [mask* (> (m/uniform (shape X)) p)]
+                             {:mask* mask*
+                              :output (* X mask*)})
+                           {:output (* X c)}))))
+
+  (backward-pass [this accum-grad] (* accum-grad mask*))
+
+  (output-shape [this] input-shape))
+
+(def activation-functions
+  {:relu a/ReLU
+   :sigmoid a/Sigmoid
+   :selu a/SELU
+   :elu a/ELU
+   :softmax a/Softmax
+   :leaky-relu a/LeakyReLU
+   :tanh a/TanH
+   :softplus a/SoftPlus
+   })
+
+(defpyrecord Activation
+  [activation-func (trainable true)
+   (layer-input) (output)
+   (accum-grad)]
+  Layer
+  (forward-pass [this X training]
+                (assoc this
+                       :layer-input X
+                       :output (activation-func X)))
+
+  (backward-pass [this accum-grad]
+                 (assoc this
+                        :accum-grad (* accum-grad
+                                       (grad activation-func layer-input))))
+
+  (output-shape [this] input-shape))
 
 ;; Method which calculates the padding based on the specified output shape and the
 ;; shape of the filters
@@ -347,7 +655,7 @@
         ;; Add padding to the image
         images-padded (m/pad images
                              [[0 0] [0 0] pad-h pad-w]
-                             "constant")
+                             :mode "constant")
         ;; Calculate the indices where the dot products are to be applied between weights
         ;; and the image
         [k i j] (get-im2col-indices (shape images)

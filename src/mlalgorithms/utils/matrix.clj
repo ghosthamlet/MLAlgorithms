@@ -111,7 +111,8 @@
     (apply concat (repeat xs reps))
     (not-implement)))
 
-(defn pad [xs pad-width mode]
+(defpy pad [xs pad-width
+            (mode "constant") (constant-values 0)]
   (if (= "constant" mode)
     (if (= 4
            (count (shape xs))
@@ -120,11 +121,14 @@
              (subvec pad-width 0 2))
         (let [pad-s2-start-cnt (get-in pad-width [2 0])
               pad-s2-end-cnt (get-in pad-width [2 1])
-              pad-s3-start (repeat (get-in pad-width [3 0]) 0)
-              pad-s3-end (repeat (get-in pad-width [3 1]) 0)
+              pad-s3-start (repeat (get-in pad-width [3 0])
+                                   constant-values)
+              pad-s3-end (repeat (get-in pad-width [3 1])
+                                 constant-values)
               pad-s2 (repeat (+ (count pad-s3-start)
                                 (count pad-s3-end)
-                                ((shape xs) 3)) 0)
+                                ((shape xs) 3))
+                             constant-values)
               pad-s2-start (repeat pad-s2-start-cnt pad-s2)
               pad-s2-end (repeat pad-s2-end-cnt pad-s2)
               pad-s3-fn #(vec (concat pad-s3-start % pad-s3-end))
