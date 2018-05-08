@@ -580,12 +580,12 @@
   (forward-pass [this X training]
                 (assoc this
                        :layer-input X
-                       :output (activation-func X)))
+                       :output ((activation-func activation-functions) X)))
 
   (backward-pass [this accum-grad]
                  (assoc this
                         :accum-grad (* accum-grad
-                                       (grad activation-func layer-input))))
+                                       (grad (activation-func  activation-functions) layer-input))))
 
   (output-shape [this] input-shape))
 

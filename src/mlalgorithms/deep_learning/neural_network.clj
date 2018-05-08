@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [* - + / == < <= > >= not= min max])
   (:require clojure.core.matrix.impl.ndarray
             [clojure.core.matrix :refer :all]
+            [clojure.core.matrix.stats :as ms]
             [clojure.core.matrix.operators :refer :all]
             [mlalgorithms.protocols :refer :all]
             [mlalgorithms.utils.matrix :as m]
