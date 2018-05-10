@@ -4,14 +4,19 @@
             [clojure.core.matrix :refer :all]
             [clojure.core.matrix.stats :as ms]
             [clojure.core.matrix.operators :refer :all]
-            [mlalgorithms.protocols :refer :all]
+            [clojure.core.matrix.selection :as sel]
+            [clojure.pprint :as pp]
+            [mlalgorithms.protocols :as p]
+            [mlalgorithms.deep-learning.layers :as layer]
+            [mlalgorithms.deep-learning.loss-functions :as loss]
+            [mlalgorithms.utils.code :refer :all]
             [mlalgorithms.utils.matrix :as m]
             [mlalgorithms.utils.error :refer :all]))
 
 (defprotocol PNeuralNetwork
-  (init [this])
+  (init-nn [this])
   (set-trainable [this trainable])
-  (add [this layer])
+  (add-layer [this layer])
   (test-on-batch [this X y])
   (train-on-batch [this X y])
   (forward-pass* [this X training])
@@ -24,47 +29,48 @@
    (n-epochs) (batch-size)
    (errors {:training [] :validation []}) (val-set)]
   PNeuralNetwork
-  (init [this]
-        (assoc this
-               :val-set (when validation-data
-                          {:X (validation-data 0)
-                           :y (validation-data 1)})))
+  (init-nn [this]
+           (assoc this
+                  :val-set (when validation-data
+                             {:X (validation-data 0)
+                              :y (validation-data 1)})))
 
   (set-trainable [this trainable]
                  (map #(assoc %
                               :trainable trainable)
                       layers))
 
-  (add [this layer]
-       (update this
-               conj
-               :layers (initialize (if (seq layers)
-                                     ;; If this is not the first layer added then set the input shape
-                                     ;; to the output shape of the last added layer
-                                     (set-input-shape layer
-                                                      (output-shape (last layers)))
-                                     layer))))
+  (add-layer [this layer]
+             (update-in this
+                        [:layers]
+                        conj (layer/initialize (if (seq layers)
+                                                      ;; If this is not the first layer added then set the input shape
+                                                      ;; to the output shape of the last added layer
+                                                      (layer/set-input-shape layer
+                                                                             (layer/output-shape (last layers)))
+                                                      layer)
+                                                    optimizer)))
 
   (test-on-batch [this X y]
-                 (let [y-pred (:output (forward-pass* X false))
-                       loss (ms/mean (loss loss-function y y-pred))
-                       acc (acc loss-function y y-pred)]
+                 (let [y-pred (:output (forward-pass* this X false))
+                       loss (ms/mean (loss/loss loss-function y y-pred))
+                       acc (loss/acc loss-function y y-pred)]
                    [loss acc]))
 
   (train-on-batch [this X y]
                   (let [y-pred (forward-pass* this X true)
-                        loss (ms/mean (loss loss-function y y-pred))
-                        acc (acc loss-function y y-pred)
-                        loss-grad (grad loss-function y y-pred)]
+                        loss (ms/mean (loss/loss loss-function y y-pred))
+                        acc (loss/acc loss-function y y-pred)
+                        loss-grad (loss/grad loss-function y y-pred)]
                     [(backward-pass* this loss-grad) loss acc]))
 
   (forward-pass* [this X training]
-                 (reduce #(forward-pass %2 %1 training)
-                         X
+                 (reduce #(do (prn (type %2)) (layer/forward-pass %2 (:output %1) training))
+                         {:output X}
                          layers))
 
   (backward-pass* [this loss-grad]
-                  (reduce #(backward-pass %2 %1)
+                  (reduce #(layer/backward-pass %2 %1)
                           loss-grad
                           (reverse layers)))
 
@@ -76,17 +82,17 @@
                   tot-params 0]
              (if (nil? layer)
                (do
-                 (prn table-data)
+                 (pp/pprint table-data)
                  (prn (str "Total Parameters: \n" tot-params)))
-               (let [layer-name (layer-name layer)
-                     params (parameters layer)
-                     out-shape (output-shape layer)]
+               (let [layer-name (str (type layer))
+                     params (layer/parameters layer)
+                     out-shape (layer/output-shape layer)]
                  (recur n
                         (conj table-data
                               [layer-name (str params) (str out-shape)])
                         (+ tot-params params))))))
 
-  PModel
+  p/PModel
   (fit [this X y]
        (let [n-samples ((shape X) 0)
              batch-error-fn #(loop [[i & is] (range 0 n-samples batch-size)
@@ -99,7 +105,8 @@
                                        y-batch (sel/sel y (sel/irange begin end))]
                                    (recur is
                                           (conj batch-error
-                                                ((train-on-batch X-batch
+                                                ((train-on-batch this
+                                                                 X-batch
                                                                  y-batch) 0))))))]
          (loop [[i & is] (range n-epochs)
                errors errors]
@@ -112,7 +119,8 @@
                                           (ms/mean (batch-error-fn)))
                           :validation (if val-set
                                         (conj (:validation errors)
-                                              ((test-on-batch (:X val-set)
+                                              ((test-on-batch this
+                                                              (:X val-set)
                                                               (:y val-set)) 0))
                                         (:validation errors))))))))
 

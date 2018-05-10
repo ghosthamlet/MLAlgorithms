@@ -3,6 +3,7 @@
   (:require clojure.core.matrix.impl.ndarray
             [clojure.core.matrix :refer :all]
             [clojure.core.matrix.operators :refer :all]
+            [mlalgorithms.utils.code :refer :all]
             [mlalgorithms.utils.matrix :as m]
             [mlalgorithms.utils.error :refer :all]))
 
@@ -50,7 +51,7 @@
   (update-grad [this w grad-wrt-w]
                (let [G (if G G (m/zeros (shape w)))
                      ;; Add the square of the gradient of the loss function at w
-                     G (+ G (m/pow grad-wrt-w 2))]
+                     G (+ G (pow grad-wrt-w 2))]
                  (assoc this
                         :G G
                         ;; Adaptive gradient with higher learning rate for sparse data
@@ -73,7 +74,7 @@
                      ;; Update average of gradients at w
                      E-grad (+ (* rho E-grad)
                                (* (- 1 rho)
-                                  (m/pow grad-wrt-w 2)))
+                                  (pow grad-wrt-w 2)))
                      RMS-delta-w (sqrt (+ E-w-updt eps))
                      RMS-grad (sqrt (+ E-grad eps))
                      ;; Adaptive learning rate
@@ -83,7 +84,7 @@
                      ;; Update the running average of w updates
                      E-w-updt (+ (* rho E-w-updt)
                                  (* (- 1 rho)
-                                    (m/pow w-updt 2)))]
+                                    (pow w-updt 2)))]
                  (assoc this
                         :w-updt w-updt
                         :E-w-updt E-w-updt
@@ -101,7 +102,7 @@
                           (m/zeros (shape grad-wrt-w)))
                      Eg (+ (* rho Eg)
                            (* (- 1 rho)
-                              (m/pow grad-wrt-w 2)))]
+                              (pow grad-wrt-w 2)))]
                  (assoc this
                         :Eg Eg
                         ;; Divide the learning rate for a weight by a running average of the magnitudes of recent
@@ -126,7 +127,7 @@
                              grad-wrt-w))
                      v (+ (* b2 v)
                           (* (- 1 b2)
-                             (m/pow grad-wrt-w 2)))
+                             (pow grad-wrt-w 2)))
                      m-hat (/ m (- 1 b1))
                      v-hat (/ v (- 1 b2))
                      w-updt (/ (* learning-rate m-hat)

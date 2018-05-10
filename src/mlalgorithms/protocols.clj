@@ -5,7 +5,8 @@
   (predict [this X]))
 
 (defprotocol PGAN
-  (init [this])
+  (init-gan-vars [this])
+  (init-gan [this])
   (build-generator [this optimizer loss-function])
   (build-discriminator [this optimizer loss-function])
   (train [this n-epochs batch-size save-interval])

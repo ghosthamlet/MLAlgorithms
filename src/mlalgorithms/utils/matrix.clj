@@ -1,8 +1,8 @@
 (ns mlalgorithms.utils.matrix
-  (:refer-clojure :exclude [* - + / == < <= > >= not= min max empty])
-  (:require [clojure.core.matrix :refer :all]
-            [clojure.core.matrix.random :as r]
-            [clojure.core.matrix.operators :refer :all]
+  (:refer-clojure :exclude [* - + / == <= >= not= min max empty])
+  (:require [clojure.core.matrix :refer :all :as m :exclude [reshape]]
+            [clojure.core.matrix.random :as random]
+            [clojure.core.matrix.operators :refer :all :as op :exclude [max]]
             [clojure.core.matrix.linear :as l]
             [clojure.core.matrix.selection :as sel]
             [mlalgorithms.utils.code :refer :all]
@@ -15,26 +15,26 @@
   `(sel/sel ~xs (sel/irange) ~x))
 
 (defmacro updatexs-in [xs ks f & args]
-  `(if (= Long (type ~ks))
+  `(if (number? ~ks)
      (not-implement "updatexs-in by scalar")
      (sel/set-sel ~xs ~@ks (~f (sel/sel ~xs ~@ks) ~@args))))
 
 (defn reshape [xs newshape]
   (if (> (count (filter #(= -1 %) newshape)) 1)
     (throw (Exception. "Newshape can only have one unknown as -1"))
-    (shape xs
-           (if (= Long (type newshape))
-             newshape
-             (map #(if (= -1 %)
-                     (/ (apply * (shape xs))
-                        (abs (apply * newshape)))
-                     %)
-                  newshape)))))
+    (m/reshape xs
+               (if (number? newshape)
+                 newshape
+                 (map #(if (= -1 %)
+                         (int (floor (/ (apply * (shape xs))
+                                        (abs (apply * newshape)))))
+                         %)
+                      newshape)))))
 
 (defn uniform [low high size]
    (+ low
       (* (- high low)
-         (r/sample-uniform size))))
+         (random/sample-uniform size))))
 
 (defpy insert [xs obj values (axis 1)]
   (case axis
@@ -85,9 +85,10 @@
          (map #(x %) idxes))
        xs))
 
-(defn prod [xs axis]
+(defpy prod [xs (axis 0)]
   (case (count (shape xs))
-    2 (case axis
+    ;; 2
+    1 (case axis
         -1 (map #(apply * %) xs)
         1 (map #(apply * %) xs)
         ;; use matrix not scalar calc
@@ -104,6 +105,10 @@
 
 (defn empty [shape]
   (reshape [] shape))
+
+(defn ones [shape]
+  (reshape (repeat (apply * shape) 1)
+           shape))
 
 (defn tile [xs reps]
   (if (and (int? reps)
@@ -143,7 +148,7 @@
 ;; use macro not fn just for ~@indices
 ;; FIXME: numpy like a[[1, 2]] failed, just can [slice(None), 2]
 (defmacro add-at [xs indices vs]
-  `(if (= Long (type ~indices))
+  `(if (number? ~indices)
      ;; (updatexs-in ~xs ~indices + ~vs)
      (not-implement "add-at by scalar")
      (let [freqs# (frequencies ~indices)]
@@ -170,4 +175,97 @@
         (map (fn [& xx] (apply + xx)) xs))
     (not-implement)))
 
-(defn np-repeat [xs times])
+(defpy np-repeat [xs times (axis)]
+  (case axis
+    2 (map (fn [a]
+             (map (fn [b]
+                    (mapcat #(repeat times %) b))
+                  a))
+           xs)
+    3 (map (fn [a]
+             (map (fn [b]
+                    (map (fn [c]
+                           (mapcat #(repeat times %) c)
+                           b))
+                    a))
+             xs)
+           (flatten (map #(repeat times %)
+                         (flatten xs))))))
+
+(defpy max [xs (axis 0) (keepdims false)]
+  (case axis
+    0 (if keepdims
+        [(apply op/max xs)]
+        (apply op/max xs))
+    -1 (if keepdims
+         (map (fn [x] [(apply op/max x)]) xs)
+         (map (fn [x] (apply op/max x)) xs))
+    (not-implement)))
+
+;; juse can do like:
+;;   (where (ge x 0) x 0)
+;;   (where (ge x 0) 0 1)
+(defpy where
+  [condition x y]
+  (if (= 2 (count (shape condition)))
+    (if (and (number? x) (number? y))
+      (map (fn [a]
+             (map #(if (= 1 %) x y) a)) condition)
+      (map (fn [ax by]
+             (map (fn [a b]
+                    (if (= b 1)
+                      (if (number? y) a x)
+                      (if (number? y) y a)))
+                  ax
+                  by))
+           (if (number? y) x y)
+           condition))
+    (not-implement)))
+
+(defpy index-of [xs e]
+  (first (keep-indexed #(if (= e %2) %1) xs)))
+
+(defpy argmax [xs (axis)]
+  (if (zero? axis)
+    (apply map (fn [& a]
+                 (index-of a (apply max a)))
+           xs)
+    (not-implement)))
+
+(defpy size [xs]
+  (apply * (shape xs)))
+
+(defpy clip [xs min max]
+  (let [f (fn [a]
+            (map #(cond
+                    (> % max) max
+                    (< % min) min
+                    :else %)
+                 a))]
+    (case (count (shape xs))
+     1 (f xs)
+     2 (map f xs)
+     (not-implement))))
+
+(defpy any [xs]
+  (not (every? zero? (flatten xs))))
+
+(defpy astype [xs (type)]
+  xs)
+
+(defpy concatenate [xs1 xs2 (axis)]
+  (if (= (shape xs1)
+         (shape xs2))
+    (case axis
+      1 (map #(concat %1 %2) xs1 xs2)
+      (not-implement))
+    (not-implement)))
+
+(defpy normal [loc scale size]
+  (reshape (repeatedly (apply * size)
+                       #(random/rand-gaussian loc scale))
+           size))
+
+;; m/broadcast not like numpy
+(defpy row-like [xs xs1]
+  (repeat ((shape xs1) 0) (xs 0)))

@@ -1,5 +1,5 @@
 (ns mlalgorithms.utils.code
-  (:require '[clojure.string :as s]))
+  (:require [clojure.string :as s]))
 
 (defmacro defpy
   "

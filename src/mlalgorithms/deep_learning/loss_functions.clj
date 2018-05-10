@@ -3,7 +3,9 @@
   (:require clojure.core.matrix.impl.ndarray
             [clojure.core.matrix :refer :all]
             [clojure.core.matrix.operators :refer :all]
+            [mlalgorithms.utils.code :refer :all]
             [mlalgorithms.utils.matrix :as m]
+            [mlalgorithms.utils.util :refer :all]
             [mlalgorithms.utils.error :refer :all]))
 
 (defprotocol PLoss
@@ -14,7 +16,7 @@
 (defpyrecord SquareLoss []
   PLoss
   (loss [this y y-pred]
-        (* 0.5 (m/pow (- y y-pred) 2)))
+        (* 0.5 (pow (- y y-pred) 2)))
 
   (grad [this y y-pred]
         (- (- y y-pred))))
@@ -23,8 +25,8 @@
   PLoss
   (loss [this y y-pred]
         (let [y-pred (m/clip y-pred 1e-15 (- 1 1e-15))]
-          (- (* (- y) (m/log y-pred))
-             (* (- 1 y) (m/log (- 1 y-pred))))))
+          (- (* (- y) (log y-pred))
+             (* (- 1 y) (log (- 1 y-pred))))))
 
   (grad [this y y-pred]
         (let [y-pred (m/clip y-pred 1e-15 (- 1 1e-15))]
