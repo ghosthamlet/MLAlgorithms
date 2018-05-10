@@ -32,9 +32,9 @@
                       newshape)))))
 
 (defn uniform [low high size]
-   (+ low
-      (* (- high low)
-         (random/sample-uniform size))))
+  (+ low
+     (* (- high low)
+        (random/sample-uniform size))))
 
 (defpy insert [xs obj values (axis 1)]
   (case axis
@@ -156,13 +156,13 @@
        (updatexs-in ~xs ~indices + ~vs))))
 
 #_(defn add-at [xs indices vs]
-  (if (= Long (type ~indices))
+    (if (= Long (type ~indices))
     ;; (updatexs-in ~xs ~indices + ~vs)
-    (not-implement "add-at by scalar")
-    (let [freqs# (frequencies ~indices)]
+      (not-implement "add-at by scalar")
+      (let [freqs# (frequencies ~indices)]
       ;; TODO: accumulated results for elements that are indexed more than once like np.add.at
       ;; How to nest unquote-splicing?
-      `(~(updatexs-in xs ~@indices + ~@vs)))))
+        `(~(updatexs-in xs ~@indices + ~@vs)))))
 
 ;; clojure.core.matrix.stats/sum enhanced
 (defn sum [xs axis keepdims]
@@ -243,9 +243,9 @@
                     :else %)
                  a))]
     (case (count (shape xs))
-     1 (f xs)
-     2 (map f xs)
-     (not-implement))))
+      1 (f xs)
+      2 (map f xs)
+      (not-implement))))
 
 (defpy any [xs]
   (not (every? zero? (flatten xs))))

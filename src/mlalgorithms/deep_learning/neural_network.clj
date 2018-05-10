@@ -46,10 +46,10 @@
                         conj (layer/initialize (if (seq layers)
                                                       ;; If this is not the first layer added then set the input shape
                                                       ;; to the output shape of the last added layer
-                                                      (layer/set-input-shape layer
-                                                                             (layer/output-shape (last layers)))
-                                                      layer)
-                                                    optimizer)))
+                                                 (layer/set-input-shape layer
+                                                                        (layer/output-shape (last layers)))
+                                                 layer)
+                                               optimizer)))
 
   (test-on-batch [this X y]
                  (let [y-pred (:output (forward-pass* this X false))
@@ -109,20 +109,20 @@
                                                                  X-batch
                                                                  y-batch) 0))))))]
          (loop [[i & is] (range n-epochs)
-               errors errors]
-          (if (nil? i)
-            (assoc this
-                   :errors errors)
-            (recur is
-                   (assoc errors
-                          :training (conj (:training errors)
-                                          (ms/mean (batch-error-fn)))
-                          :validation (if val-set
-                                        (conj (:validation errors)
-                                              ((test-on-batch this
-                                                              (:X val-set)
-                                                              (:y val-set)) 0))
-                                        (:validation errors))))))))
+                errors errors]
+           (if (nil? i)
+             (assoc this
+                    :errors errors)
+             (recur is
+                    (assoc errors
+                           :training (conj (:training errors)
+                                           (ms/mean (batch-error-fn)))
+                           :validation (if val-set
+                                         (conj (:validation errors)
+                                               ((test-on-batch this
+                                                               (:X val-set)
+                                                               (:y val-set)) 0))
+                                         (:validation errors))))))))
 
   (predict [this X]
            (forward-pass* this X false)))

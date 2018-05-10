@@ -66,10 +66,10 @@
     (m/uniform (- limit) limit [n-features])))
 
 (defn reg-fit! [{:keys [n-iterations
-                       learning-rate
-                       regularization]
-                :as model}
-               X y]
+                        learning-rate
+                        regularization]
+                 :as model}
+                X y]
   (let [X (m/insert X 0 1 :axis 1)]
     ;; Do gradient descent for n-iterations
     (loop [i n-iterations
@@ -95,8 +95,8 @@
   (dot (m/insert X 0 1 :axis 1) (:w model)))
 
 (defrecord LinearRegression
-    [n-iterations learning-rate regularization
-     gradient-descent w training-errors]
+           [n-iterations learning-rate regularization
+            gradient-descent w training-errors]
   PModel
   (fit [this X y]
     (if gradient-descent
@@ -110,8 +110,8 @@
   (normalize (polynomial-features X degree)))
 
 (defrecord LassoRegression
-    [n-iterations learning-rate regularization
-     degree w training-errors]
+           [n-iterations learning-rate regularization
+            degree w training-errors]
   PModel
   (fit [this X y]
     (reg-fit! this (lasso-normalize X degree) y))
@@ -120,8 +120,8 @@
     (reg-predict this (lasso-normalize X degree))))
 
 (defrecord PolynomialRegression
-    [n-iterations learning-rate regularization
-     degree w training-errors]
+           [n-iterations learning-rate regularization
+            degree w training-errors]
   PModel
   (fit [this X y]
     (reg-fit! this (polynomial-features X degree) y))
@@ -130,8 +130,8 @@
     (reg-predict this (polynomial-features X degree))))
 
 (defrecord RidgeRegression
-    [n-iterations learning-rate regularization
-     degree w training-errors]
+           [n-iterations learning-rate regularization
+            degree w training-errors]
   PModel
   (fit [this X y]
     (reg-fit! this X y))
@@ -140,8 +140,8 @@
     (reg-predict this X)))
 
 (defrecord PolynomialRidgeRegression
-    [n-iterations learning-rate regularization
-     degree w training-errors]
+           [n-iterations learning-rate regularization
+            degree w training-errors]
   PModel
   (fit [this X y]
     (reg-fit! this (lasso-normalize X degree) y))
@@ -150,8 +150,8 @@
     (reg-predict this (lasso-normalize X degree))))
 
 (defrecord ElasticNet
-    [n-iterations learning-rate regularization
-     degree w training-errors]
+           [n-iterations learning-rate regularization
+            degree w training-errors]
   PModel
   (fit [this X y]
     (reg-fit! this (lasso-normalize X degree) y))
@@ -179,14 +179,14 @@
       :or {n-iterations 300
            learning-rate 0.01}}]
   (LassoRegression. n-iterations learning-rate
-                   (L1Regularization. reg-factor)
-                   degree w training-errors))
+                    (L1Regularization. reg-factor)
+                    degree w training-errors))
 
 (defn reg-test []
   (def X [[1 2] [10 20]])
   (def y [2 3])
   (def lr (make-linear-regression :n-iterations 10
-                                   :learning-rate 0.001))
+                                  :learning-rate 0.001))
   (def lr2 (fit lr X y))
   (predict lr2 X)
   (:w lr2)

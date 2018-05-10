@@ -84,12 +84,12 @@
      :target (map #(first %) xs)}))
 
 #_(defn fetch-mldata [name]
-  (let [filename (s/replace (s/lower-case name) " " "-")
-        filepath (str "/tmp/" filename ".csv")
-        file (io/file filepath)
-        urlname (str data-site filename)]
-    (if (.exists file)
-      (slurp file)
-      (let [content (slurp urlname)]
-        (spit file content)
-        content))))
+    (let [filename (s/replace (s/lower-case name) " " "-")
+          filepath (str "/tmp/" filename ".csv")
+          file (io/file filepath)
+          urlname (str data-site filename)]
+      (if (.exists file)
+        (slurp file)
+        (let [content (slurp urlname)]
+          (spit file content)
+          content))))

@@ -175,7 +175,7 @@
                               :accum-grad accum-grad-next)
                        (let [grad-wrt-state (* (dot (m/gety accum-grad t) V)
                                                (activation/grad activation
-                                                     (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
+                                                                (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
                              ;; Gradient w.r.t the layer input
                              accum-grad-next (m/sety accum-grad-next
                                                      t
@@ -319,13 +319,13 @@
                   (merge this
                          ;; Initialize running mean and variance if first run
                          (when-not running-mean
-                            {:running-mean mean
-                             :running-var var})
+                           {:running-mean mean
+                            :running-var var})
                          (when (and training trainable)
-                            {:running-mean (+ (* momentum running-mean)
-                                              (* (- 1 momentum) mean))
-                             :running-var (+ (* momentum running-var)
-                                             (* (- 1 momentum) var))})
+                           {:running-mean (+ (* momentum running-mean)
+                                             (* (- 1 momentum) mean))
+                            :running-var (+ (* momentum running-var)
+                                            (* (- 1 momentum) var))})
                          (let [X-centered (- X mean)
                                stddev-inv (/ 1 (sqrt (+ var eps)))
                                X-norm (* X-centered stddev-inv)]
@@ -373,9 +373,9 @@
         output (m/reshape output [out-height out-width batch-size channels])
         output (transpose output 2 3 0 1)]
     (assoc pooling-layer
-          :layer-input X
-          :cache cache
-          :output output)))
+           :layer-input X
+           :cache cache
+           :output output)))
 
 (defpy pooling-backward [pooling-layer accum-grad]
   (let [[batch-size _ _ _] (shape accum-grad)
@@ -471,9 +471,9 @@
                          (let [accum-grad-col (m/zeros [(m/prod pool-shape)
                                                         (m/size accum-grad)])]
                            (m/sety accum-grad-col
-                                        (range (m/size accum-grad))
-                                        (* (/ 1. ((shape accum-grad-col) 0))
-                                           accum-grad)))))
+                                   (range (m/size accum-grad))
+                                   (* (/ 1. ((shape accum-grad-col) 0))
+                                      accum-grad)))))
 
 (defpy padding-forward [padding-layer X (training true)]
   (assoc padding-layer
@@ -648,8 +648,7 @@
    :softmax activation/make-softmax
    :leaky-relu activation/make-leakyrelu
    :tanh activation/make-tanh
-   :softplus activation/make-softplus
-   })
+   :softplus activation/make-softplus})
 
 (defpyrecord Activation
   [activation-func (trainable true)
@@ -727,7 +726,7 @@
         j (+ (m/reshape j0 [-1 1])
              (m/reshape j1 [1 -1]))
         k (m/reshape (m/np-repeat (range channels)
-                               (* filter-height filter-width))
+                                  (* filter-height filter-width))
                      [-1 1])]
     [k i j]))
 
