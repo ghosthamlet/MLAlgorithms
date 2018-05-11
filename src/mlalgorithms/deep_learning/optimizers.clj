@@ -5,6 +5,7 @@
             [clojure.core.matrix.operators :refer :all]
             [mlalgorithms.protocols :as p]
             [mlalgorithms.utils.code :refer :all]
+            [mlalgorithms.utils.util :refer :all]
             [mlalgorithms.utils.matrix :as m]
             [mlalgorithms.utils.error :refer :all]))
 
@@ -13,6 +14,8 @@
    (w-updt) (output)]
   p/POptimizer
   (opt-grad [this w grad-wrt-w]
+            (alog "StochasticGradientDescent")
+            (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [w-updt (if w-updt
                            w-updt
                            (m/zeros (shape w)))
@@ -29,6 +32,8 @@
    (w-updt []) (output)]
   p/POptimizer
   (opt-grad [this w grad-func]
+            (alog "NesterovAcceleratedGradient")
+            (alog "w: " (shape w))
                ;; Calculate the gradient of the loss a bit further down the slope from w
             (let [approx-future-grad (m/clip (grad-func (- w (* momentum w-updt))) -1 1)
                   w-updt (if-not (m/any w-updt)
@@ -47,6 +52,8 @@
    (eps 1e-8) (output)]
   p/POptimizer
   (opt-grad [this w grad-wrt-w]
+            (alog "Adagrad")
+            (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [G (if G G (m/zeros (shape w)))
                      ;; Add the square of the gradient of the loss function at w
                   G (+ G (pow grad-wrt-w 2))]
@@ -64,6 +71,8 @@
    (w-updt) (ouput)]
   p/POptimizer
   (opt-grad [this w grad-wrt-w]
+            (alog "Adadelta")
+            (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [[w-updt E-w-updt E-grad] (if w-updt
                                              [w-updt E-w-updt E-grad]
                                              [(m/zeros (shape w))
@@ -95,6 +104,8 @@
    (eps 1e-8) (output)]
   p/POptimizer
   (opt-grad [this w grad-wrt-w]
+            (alog "RMSprop")
+            (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [Eg (if Eg
                        Eg
                        (m/zeros (shape grad-wrt-w)))
@@ -116,6 +127,8 @@
    (m) (v)]
   p/POptimizer
   (opt-grad [this w grad-wrt-w]
+            (alog "Adam")
+            (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [[m v] (if m
                           [m v]
                           [(m/zeros (shape grad-wrt-w))

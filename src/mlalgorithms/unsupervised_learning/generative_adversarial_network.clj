@@ -124,7 +124,7 @@
                                           :axis 1)
                      ;; Train the generator
                      [combined g-loss g-acc] (nn/train-on-batch combined noise valid)]
-                 (println (apply format "%d [D loss: %f, acc: %f] [G loss: %f, acc: %f]"
+                 (println (apply format "%d [D loss: %f, acc: %f%%] [G loss: %f, acc: %f%%]"
                                  epoch (map #(double %) [d-loss (* 100 d-acc) g-loss (* 100 g-acc)])))
                  ;; If at save interval => save generated image samples
                  #_(when (zero? (mod epoch save-interval))
@@ -146,4 +146,4 @@
   ;; (require '[mlalgorithms.protocols :as p])
   (time (p/train (-> (make-gan) p/init-gan-vars p/init-gan) epochs 64 400 samples)))
 
-(run 10)
+(run 30 :samples 15000)
