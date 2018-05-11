@@ -213,19 +213,19 @@
   [condition x y]
   (eif condition x y)
   #_(if (= 2 (count (shape condition)))
-    (if (and (number? x) (number? y))
-      (map (fn [a]
-             (map #(if (= 1 %) x y) a)) condition)
-      (map (fn [ax by]
-             (map (fn [a b]
-                    (if (= b 1)
-                      (if (number? y) a x)
-                      (if (number? y) y a)))
-                  ax
-                  by))
-           (if (number? y) x y)
-           condition))
-    (not-implement)))
+      (if (and (number? x) (number? y))
+        (map (fn [a]
+               (map #(if (= 1 %) x y) a)) condition)
+        (map (fn [ax by]
+               (map (fn [a b]
+                      (if (= b 1)
+                        (if (number? y) a x)
+                        (if (number? y) y a)))
+                    ax
+                    by))
+             (if (number? y) x y)
+             condition))
+      (not-implement)))
 
 (defpy index-of [xs e]
   (first (keep-indexed #(if (= e %2) %1) xs)))
@@ -233,8 +233,8 @@
 (defpy argmax [xs (axis)]
   (case axis
     0 (apply map (fn [& a]
-                 (index-of a (emax a)))
-           xs)
+                   (index-of a (emax a)))
+             xs)
     1 (map (fn [a]
              (index-of a (emax a)))
            xs)

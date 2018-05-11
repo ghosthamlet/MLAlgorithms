@@ -128,7 +128,7 @@
                                  epoch (map #(double %) [d-loss (* 100 d-acc) g-loss (* 100 g-acc)])))
                  ;; If at save interval => save generated image samples
                  #_(when (zero? (mod epoch save-interval))
-                   (p/save-imgs this epoch))
+                     (p/save-imgs this epoch))
                  (recur epochs))))))
 
   (save-imgs [this epoch]
@@ -145,3 +145,5 @@
   ;; (require '[mlalgorithms.unsupervised-learning.generative-adversarial-network :as gan] :reload-all)
   ;; (require '[mlalgorithms.protocols :as p])
   (time (p/train (-> (make-gan) p/init-gan-vars p/init-gan) epochs 64 400 samples)))
+
+(run 10)

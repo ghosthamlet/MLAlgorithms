@@ -17,9 +17,9 @@
         (* 0.5 (pow (- y y-pred) 2)))
 
   (loss-grad [this y y-pred]
-        (alog "loss-grad")
-        (alog "y: " (shape y) " y-pred: " (shape y-pred))
-        (- (- y y-pred))))
+             (alog "loss-grad")
+             (alog "y: " (shape y) " y-pred: " (shape y-pred))
+             (- (- y y-pred))))
 
 (defpyrecord CrossEntropy []
   p/PLoss
@@ -31,11 +31,11 @@
              (* (- 1 y) (log (- 1 y-pred))))))
 
   (loss-grad [this y y-pred]
-        (alog "loss-grad")
-        (alog "y: " (shape y) " y-pred: " (shape y-pred))
-        (let [y-pred (m/clip y-pred 1e-15 (- 1 1e-15))]
-          (+ (- (/ y y-pred))
-             (/ (- 1 y) (- 1 y-pred)))))
+             (alog "loss-grad")
+             (alog "y: " (shape y) " y-pred: " (shape y-pred))
+             (let [y-pred (m/clip y-pred 1e-15 (- 1 1e-15))]
+               (+ (- (/ y y-pred))
+                  (/ (- 1 y) (- 1 y-pred)))))
 
   (acc [this y y-pred]
        (alog "acc")

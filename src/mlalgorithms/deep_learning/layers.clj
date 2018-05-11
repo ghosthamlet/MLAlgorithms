@@ -184,13 +184,13 @@
                              V-opt (p/opt-grad V-opt V grad-V)
                              W-opt (p/opt-grad W-opt W grad-W)]
                          (assoc this
-                               :U (:output U-opt)
-                               :V (:output V-opt)
-                               :W (:output W-opt)
-                               :U-opt U-opt
-                               :V-opt V-opt
-                               :W-opt W-opt
-                               :accum-grad accum-grad-next))
+                                :U (:output U-opt)
+                                :V (:output V-opt)
+                                :W (:output W-opt)
+                                :U-opt U-opt
+                                :V-opt V-opt
+                                :W-opt W-opt
+                                :accum-grad accum-grad-next))
                        (let [grad-wrt-state (* (dot (m/gety accum-grad t) V)
                                                (activation/grad activation
                                                                 (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
