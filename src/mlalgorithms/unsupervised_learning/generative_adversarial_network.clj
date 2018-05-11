@@ -35,15 +35,15 @@
                   generator (p/build-generator this
                                                optimizer
                                                loss-function)]
-              (prn)
+              (alog)
               (nn/summary generator "Generator")
-              (prn)
+              (alog)
               (nn/summary discriminator "Discriminator")
               (assoc this
                      :discriminator discriminator
                      :generator generator
                      :combined (assoc (nn/make-neuralnetwork optimizer
-                                                             :loss loss-function)
+                                                             :loss-function loss-function)
                                       :layers (concat (:layers generator)
                                                       (:layers discriminator))))))
 
@@ -72,21 +72,24 @@
                            (nn/add-layer (layer/make-dense 2))
                            (nn/add-layer (layer/make-activation :softmax))))
 
-  (train [this n-epochs batch-size save-interval]
-         (let [mnist (fetch-mldata)
+  (train [this n-epochs batch-size save-interval samples]
+         ;; can use upto 15000
+         (let [mnist (fetch-mldata :samples samples)
                ;; Rescale [-1, 1]
-               _ (prn "Rescale")
+               _ (alog "Rescale")
+               _ (alog (sel/sel (:data mnist) 0 0))
                X (/ (- (m/astype (:data mnist) :type :float32) 127.5) 127.5)
                y (:target mnist)
                half-batch (int (/ batch-size 2))]
-           (prn "start")
+           (alog "start")
            (loop [[epoch & epochs] (range n-epochs)]
-             (if (nil? epochs)
-               (prn "Train fin")
+             (if (nil? epoch)
+               (alog "Train fin")
                ;; ---------------------
                ;;  Train Discriminator
                ;; ---------------------
-               (let [discriminator (nn/set-trainable discriminator true)
+               (let [_ (alog "Train Discriminator")
+                     discriminator (nn/set-trainable discriminator true)
                      ;; Select a random half batch of images
                      idx (random/sample-rand-int half-batch ((shape X) 0))
                      imgs (sel/sel X idx (sel/irange))
@@ -102,10 +105,12 @@
                                          (m/ones [half-batch 1])
                                          :axis 1)
                      ;; Train the discriminator
-                     [d-loss-real d-acc-real] (nn/train-on-batch discriminator imgs valid)
-                     [d-loss-fake d-acc-fake] (nn/train-on-batch discriminator gen-imgs fake)
+                     [discriminator d-loss-real d-acc-real] (nn/train-on-batch discriminator imgs valid)
+                     [discriminator d-loss-fake d-acc-fake] (nn/train-on-batch discriminator gen-imgs fake)
                      d-loss (* 0.5 (+ d-loss-real d-loss-fake))
                      d-acc (* 0.5 (+ d-acc-real d-acc-fake))
+                     _ (alog)
+                     _ (alog "Train Generator")
                      ;; ---------------------
                      ;;  Train Generator
                      ;; ---------------------
@@ -118,12 +123,11 @@
                                           (m/zeros [batch-size 1])
                                           :axis 1)
                      ;; Train the generator
-                     [g-loss g-acc] (nn/train-on-batch combined noise valid)]
-                 (prn (format epoch
-                              " [D loss: %d, acc: %d] [G loss: %d, acc: %d]"
-                              d-loss (* 100 d-acc) g-loss (* 100 g-acc)))
+                     [combined g-loss g-acc] (nn/train-on-batch combined noise valid)]
+                 (println (apply format "%d [D loss: %f, acc: %f] [G loss: %f, acc: %f]"
+                                 epoch (map #(double %) [d-loss (* 100 d-acc) g-loss (* 100 g-acc)])))
                  ;; If at save interval => save generated image samples
-                 (when (zero? (mod epoch save-interval))
+                 #_(when (zero? (mod epoch save-interval))
                    (p/save-imgs this epoch))
                  (recur epochs))))))
 
@@ -137,4 +141,7 @@
                    gen-imgs (+ (* 0.5 gen-imgs) 0.5)]
                (spit (format "mnist_%d.png" epoch) gen-imgs))))
 
-;; (p/train (-> (make-gan) p/init-gan-vars p/init-gan) 2 64 400)
+(defpy run [epochs (samples 10)]
+  ;; (require '[mlalgorithms.unsupervised-learning.generative-adversarial-network :as gan] :reload-all)
+  ;; (require '[mlalgorithms.protocols :as p])
+  (time (p/train (-> (make-gan) p/init-gan-vars p/init-gan) epochs 64 400 samples)))

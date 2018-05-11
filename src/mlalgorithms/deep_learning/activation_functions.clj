@@ -22,8 +22,16 @@
 (defpyrecord Softmax []
   clojure.lang.IFn
   (invoke [this x]
-          (let [e-x (exp (- x (m/max x :axis -1 :keepdims true)))]
-            (/ e-x (m/sum e-x :axis -1 :keepdims true))))
+          (let [e-x (->> x
+                         (m/column-like (m/max x
+                                               :axis -1
+                                               :keepdims true))
+                         (- x)
+                         exp)]
+            (/ e-x (m/column-like (m/sum e-x
+                                         :axis -1
+                                         :keepdims true)
+                                  e-x))))
 
   PActivation
   (grad [this x]

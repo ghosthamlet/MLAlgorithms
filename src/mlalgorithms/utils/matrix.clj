@@ -5,6 +5,7 @@
             [clojure.core.matrix.operators :refer :all :as op :exclude [max]]
             [clojure.core.matrix.linear :as l]
             [clojure.core.matrix.selection :as sel]
+            [clojure.core.matrix.stats :as ms]
             [mlalgorithms.utils.code :refer :all]
             [mlalgorithms.utils.error :refer :all]))
 
@@ -165,15 +166,21 @@
         `(~(updatexs-in xs ~@indices + ~@vs)))))
 
 ;; clojure.core.matrix.stats/sum enhanced
-(defn sum [xs axis keepdims]
-  (case axis
-    0 (if keepdims
-        [(apply map (fn [& xx] (apply + xx)) xs)]
-        (apply map (fn [& xx] (apply + xx)) xs))
-    1 (if keepdims
-        (map (fn [& xx] [(apply + xx)]) xs)
-        (map (fn [& xx] (apply + xx)) xs))
-    (not-implement)))
+(defpy sum [xs (axis) (keepdims)]
+  (if (< 2 (count (shape xs)))
+    (not-implement)
+    (case axis
+      0 (if keepdims
+          [(apply map (fn [& xx] (apply + xx)) xs)]
+          ;; (apply map (fn [& xx] (apply + xx)) xs)
+          (esum xs))
+      1 (if keepdims
+          (map (fn [xx] [(apply + xx)]) xs)
+          (map (fn [xx] (apply + xx)) xs))
+      -1 (if keepdims
+           (map (fn [xx] [(apply + xx)]) xs)
+           (map (fn [xx] (apply + xx)) xs))
+      (not-implement))))
 
 (defpy np-repeat [xs times (axis)]
   (case axis
@@ -202,12 +209,10 @@
          (map (fn [x] (apply op/max x)) xs))
     (not-implement)))
 
-;; juse can do like:
-;;   (where (ge x 0) x 0)
-;;   (where (ge x 0) 0 1)
 (defpy where
   [condition x y]
-  (if (= 2 (count (shape condition)))
+  (eif condition x y)
+  #_(if (= 2 (count (shape condition)))
     (if (and (number? x) (number? y))
       (map (fn [a]
              (map #(if (= 1 %) x y) a)) condition)
@@ -226,9 +231,12 @@
   (first (keep-indexed #(if (= e %2) %1) xs)))
 
 (defpy argmax [xs (axis)]
-  (if (zero? axis)
-    (apply map (fn [& a]
-                 (index-of a (apply max a)))
+  (case axis
+    0 (apply map (fn [& a]
+                 (index-of a (emax a)))
+           xs)
+    1 (map (fn [a]
+             (index-of a (emax a)))
            xs)
     (not-implement)))
 
@@ -257,7 +265,7 @@
   (if (= (shape xs1)
          (shape xs2))
     (case axis
-      1 (map #(concat %1 %2) xs1 xs2)
+      1 (map concat xs1 xs2)
       (not-implement))
     (not-implement)))
 
@@ -269,3 +277,13 @@
 ;; m/broadcast not like numpy
 (defpy row-like [xs xs1]
   (repeat ((shape xs1) 0) (xs 0)))
+
+(defpy column-like [xs xs1]
+  (let [col-cnt ((shape xs1) 1)]
+    (apply concat
+           (emap #(repeat col-cnt %) xs))))
+
+(defpy mean [xs (axis)]
+  (case axis
+    nil (ms/mean (flatten xs))
+    (not-implement)))

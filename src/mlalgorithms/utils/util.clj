@@ -11,8 +11,13 @@
             [mlalgorithms.utils.matrix :as m]
             [mlalgorithms.utils.error :refer :all]))
 
+(def DEBUG false)
 ;; (def data-site "http://mldata.org/repository/data/download/csv/")
 (def data-url "https://pjreddie.com/media/files/mnist_train.csv")
+
+(defn alog [& msg]
+  (when DEBUG
+    (println msg)))
 
 (defn combinations-with-replacement [coll k]
   (when-not (zero? k)
@@ -37,8 +42,7 @@
   (let [[n-samples n-features] (shape xs)
         index-combinations
         (fn []
-          (reduce (fn [acc v]
-                    (concat acc v))
+          (reduce concat
                   []
                   (reduce #(conj %1
                                  (combinations-with-replacement
@@ -61,14 +65,14 @@
                                1)))))))
 
 (defn accuracy-score [y y-pred]
-  (/ (m/sum (= y y-pred) :axis 0) (count y)))
+  (/ (m/sum (eq y y-pred) :axis 0) (count y)))
 
 (defpy fetch-mldata [(name "mnist_train") (samples 10)]
   (let [filename name
-        filepath (str "/tmp/" filename ".csv")
+        filepath (str "./" filename ".csv")
         file (io/file filepath)
         urlname data-url
-        _ (prn "samples: " samples)
+        _ (alog "samples: " samples)
         xs (take samples
                  (s/split (if (.exists file)
                             (slurp file)
@@ -76,12 +80,16 @@
                               (spit file content)
                               content))
                           #"\n"))
-        _ (prn "samples end")
-        xs (map (fn [x]
-                  (map #(Float/parseFloat %)
-                       (s/split x #","))) xs)]
-    {:data (map #(drop 1 %) xs)
-     :target (map #(first %) xs)}))
+        _ (alog "parsing")
+        xs (pmap (fn [x]
+                   (pmap #(Float/parseFloat %)
+                         (s/split x #","))) xs)
+        _ (alog "converting")
+        ;; use future/reducer/core.async to pallarelize run this two
+        data-ft (future (matrix (pmap #(drop 1 %) xs)))
+        target-ft (future (matrix (pmap #(first %) xs)))]
+    {:data @data-ft
+     :target @target-ft}))
 
 #_(defn fetch-mldata [name]
     (let [filename (s/replace (s/lower-case name) " " "-")

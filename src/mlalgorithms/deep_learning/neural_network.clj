@@ -6,12 +6,19 @@
             [clojure.core.matrix.operators :refer :all]
             [clojure.core.matrix.selection :as sel]
             [clojure.pprint :as pp]
+            [clojure.string :as s]
             [mlalgorithms.protocols :as p]
             [mlalgorithms.deep-learning.layers :as layer]
-            [mlalgorithms.deep-learning.loss-functions :as loss]
             [mlalgorithms.utils.code :refer :all]
+            [mlalgorithms.utils.util :refer :all]
             [mlalgorithms.utils.matrix :as m]
             [mlalgorithms.utils.error :refer :all]))
+
+(defn get-last-layer-output [nn]
+  (->> nn :layers last :output))
+
+(defn get-type-name [x]
+  (last (s/split (str (type x)) #"\.")))
 
 (defprotocol PNeuralNetwork
   (init-nn [this])
@@ -36,9 +43,10 @@
                               :y (validation-data 1)})))
 
   (set-trainable [this trainable]
-                 (map #(assoc %
-                              :trainable trainable)
-                      layers))
+                 (assoc this
+                        :layers (map #(assoc %
+                                             :trainable trainable)
+                                     layers)))
 
   (add-layer [this layer]
              (update-in this
@@ -52,38 +60,59 @@
                                                optimizer)))
 
   (test-on-batch [this X y]
-                 (let [y-pred (:output (forward-pass* this X false))
-                       loss (ms/mean (loss/loss loss-function y y-pred))
-                       acc (loss/acc loss-function y y-pred)]
+                 (alog)
+                 (alog "test-on-batch")
+                 (let [y-pred (get-last-layer-output (forward-pass* this X false))
+                       _ (alog (get-type-name loss-function))
+                       loss (m/mean (p/loss loss-function y y-pred))
+                       acc (p/acc loss-function y y-pred)]
                    [loss acc]))
 
   (train-on-batch [this X y]
-                  (let [y-pred (forward-pass* this X true)
-                        loss (ms/mean (loss/loss loss-function y y-pred))
-                        acc (loss/acc loss-function y y-pred)
-                        loss-grad (loss/grad loss-function y y-pred)]
-                    [(backward-pass* this loss-grad) loss acc]))
+                  (alog)
+                  (alog "train-on-batch")
+                  (let [nn (forward-pass* this X true)
+                        y-pred (get-last-layer-output nn)
+                        _ (alog (get-type-name loss-function))
+                        loss (m/mean (p/loss loss-function y y-pred))
+                        acc (p/acc loss-function y y-pred)
+                        loss-grad (p/loss-grad loss-function y y-pred)]
+                    [(backward-pass* nn loss-grad) loss acc]))
 
   (forward-pass* [this X training]
-                 (reduce #(do (prn (type %2)) (layer/forward-pass %2 (:output %1) training))
-                         {:output X}
-                         layers))
+                 (alog)
+                 (alog "forward-pass*")
+                 (:nn (reduce #(let [_ (alog (format "*** %s ***" (get-type-name %2)))
+                                     layer (layer/forward-pass %2 (:output %1) training)]
+                                 (assoc (update-in %1 [:nn :layers] conj layer)
+                                        :output (:output layer)))
+                              {:nn (assoc this :layers [])
+                               :output X}
+                              layers)))
 
   (backward-pass* [this loss-grad]
-                  (reduce #(layer/backward-pass %2 %1)
-                          loss-grad
-                          (reverse layers)))
+                  (alog)
+                  (alog "backward-pass*")
+                  (update-in (:nn (reduce #(let [_ (alog (format "*** %s ***" (get-type-name %2)))
+                                                 layer (layer/backward-pass %2 (:accum-grad %1))]
+                                             (assoc (update-in %1 [:nn :layers] conj layer)
+                                                    :accum-grad (:accum-grad layer)))
+                                          {:nn (assoc this :layers [])
+                                           :accum-grad loss-grad}
+                                          (reverse layers)))
+                             [:layers]
+                             reverse))
 
   (summary [this name]
-           (prn (str "Model: " name))
-           (prn (str "Input Shape: " (:input-shape (layers 0))))
+           (println (str "Model: " name))
+           (println (str "Input Shape: " (:input-shape (layers 0))))
            (loop [[layer & n] layers
                   table-data [["Layer Type" "Parameters" "Output Shape"]]
                   tot-params 0]
              (if (nil? layer)
                (do
                  (pp/pprint table-data)
-                 (prn (str "Total Parameters: \n" tot-params)))
+                 (println (str "Total Parameters: \n" tot-params)))
                (let [layer-name (str (type layer))
                      params (layer/parameters layer)
                      out-shape (layer/output-shape layer)]
@@ -107,7 +136,8 @@
                                           (conj batch-error
                                                 ((train-on-batch this
                                                                  X-batch
-                                                                 y-batch) 0))))))]
+                                                                 y-batch)
+                                                 1))))))]
          (loop [[i & is] (range n-epochs)
                 errors errors]
            (if (nil? i)
@@ -116,7 +146,7 @@
              (recur is
                     (assoc errors
                            :training (conj (:training errors)
-                                           (ms/mean (batch-error-fn)))
+                                           (m/mean (batch-error-fn)))
                            :validation (if val-set
                                          (conj (:validation errors)
                                                ((test-on-batch this
@@ -125,4 +155,6 @@
                                          (:validation errors))))))))
 
   (predict [this X]
-           (forward-pass* this X false)))
+           (alog)
+           (alog "predict")
+           (get-last-layer-output (forward-pass* this X false))))

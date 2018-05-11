@@ -3,18 +3,16 @@
   (:require clojure.core.matrix.impl.ndarray
             [clojure.core.matrix :refer :all]
             [clojure.core.matrix.operators :refer :all]
+            [mlalgorithms.protocols :as p]
             [mlalgorithms.utils.code :refer :all]
             [mlalgorithms.utils.matrix :as m]
             [mlalgorithms.utils.error :refer :all]))
 
-(defprotocol POptimizer
-  (update-grad [this w grad-wrt-w]))
-
 (defpyrecord StochasticGradientDescent
   [(learning-rate 0.01) (momentum 0)
    (w-updt) (output)]
-  POptimizer
-  (update-grad [this w grad-wrt-w]
+  p/POptimizer
+  (opt-grad [this w grad-wrt-w]
                (let [w-updt (if w-updt
                               w-updt
                               (m/zeros (shape w)))
@@ -29,8 +27,8 @@
 (defpyrecord NesterovAcceleratedGradient
   [(learning-rate 0.001) (momentum 0.4)
    (w-updt []) (output)]
-  POptimizer
-  (update-grad [this w grad-func]
+  p/POptimizer
+  (opt-grad [this w grad-func]
                ;; Calculate the gradient of the loss a bit further down the slope from w
                (let [approx-future-grad (m/clip (grad-func (- w (* momentum w-updt))) -1 1)
                      w-updt (if-not (m/any w-updt)
@@ -47,8 +45,8 @@
   [(learning-rate 0.01)
    (G) ; # Sum of squares of the gradients
    (eps 1e-8) (output)]
-  POptimizer
-  (update-grad [this w grad-wrt-w]
+  p/POptimizer
+  (opt-grad [this w grad-wrt-w]
                (let [G (if G G (m/zeros (shape w)))
                      ;; Add the square of the gradient of the loss function at w
                      G (+ G (pow grad-wrt-w 2))]
@@ -64,8 +62,8 @@
    (E-w-updt) ; Running average of squared parameter updates
    (E-grad) ; Running average of the squared gradient of w
    (w-updt) (ouput)]
-  POptimizer
-  (update-grad [this w grad-wrt-w]
+  p/POptimizer
+  (opt-grad [this w grad-wrt-w]
                (let [[w-updt E-w-updt E-grad] (if w-updt
                                                 [w-updt E-w-updt E-grad]
                                                 [(m/zeros (shape w))
@@ -95,8 +93,8 @@
   [(learning-rate 0.01) (rho 0.9)
    (Eg) ; Running average of the square gradients at w
    (eps 1e-8) (output)]
-  POptimizer
-  (update-grad [this w grad-wrt-w]
+  p/POptimizer
+  (opt-grad [this w grad-wrt-w]
                (let [Eg (if Eg
                           Eg
                           (m/zeros (shape grad-wrt-w)))
@@ -116,8 +114,8 @@
    ;; Decay rates
    (b1 0.9) (b2 0.999)
    (m) (v)]
-  POptimizer
-  (update-grad [this w grad-wrt-w]
+  p/POptimizer
+  (opt-grad [this w grad-wrt-w]
                (let [[m v] (if m
                              [m v]
                              [(m/zeros (shape grad-wrt-w))
