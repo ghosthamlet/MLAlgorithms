@@ -351,9 +351,9 @@
                            {:running-mean -running-mean
                             :running-var -running-var})
                          (when (and training trainable)
-                           {:running-mean (+ (* momentum running-mean)
+                           {:running-mean (+ (* momentum -running-mean)
                                              (* (- 1 momentum) mean))
-                            :running-var (+ (* momentum running-var)
+                            :running-var (+ (* momentum -running-var)
                                             (* (- 1 momentum) var))})
                          (let [-X-centered (- X mean)
                                -stddev-inv (/ 1 (sqrt (+ var eps)))
