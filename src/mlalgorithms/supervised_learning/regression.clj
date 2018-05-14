@@ -73,22 +73,22 @@
   (let [X (m/insert X 0 1 :axis 1)]
     ;; Do gradient descent for n-iterations
     (loop [i n-iterations
-           w (init-weights! model ((shape X) 1))
+           -w (init-weights! model ((shape X) 1))
            training-errors []]
       (if (= i 0)
         (assoc model
-               :w w
+               :w -w
                :training-errors training-errors)
-        (let [y-pred (dot X w)]
+        (let [y-pred (dot X -w)]
           (recur (dec i)
-                 (- w (* learning-rate
+                 (- -w (* learning-rate
                          ;; Gradient of l2 loss w.r.t w
                          (+ (dot (- y y-pred) X)
-                            (grad regularization w))))
+                            (grad regularization -w))))
                  (conj training-errors
                        ;; Calculate l2 loss
                        (mean (+ (* 0.5 (pow (- y y-pred) 2))
-                                (regularization w))))))))))
+                                (regularization -w))))))))))
 
 (defn reg-predict [model X]
   ;; Insert constant ones for bias weights

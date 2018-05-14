@@ -30,12 +30,13 @@
   ;; (layer-name [this])
   (parameters [this])
   (forward-pass [this X training])
-  (backward-pass [this accum-grad])
+  (backward-pass [this -accum-grad])
   (output-shape [this]))
 
 (defpyrecord Dense
   [n-units (input-shape)
    (layer-input) (trainable true)
+   ;; w0 is neuron bias
    (W) (w0) (W-opt) (w0-opt)
    (output) (accum-grad)]
   Layer
@@ -63,32 +64,32 @@
                 ;; (alog "X sample: " (sel/sel X 0 [1 2 3]))
                 ;; same as (+ (mmul X (:W this)) (:w0 this))
                 ;; XXX: dot can use for 2D vector but can't use for matrix type
-                (let [output (+ (mmul X W) (m/row-like w0 X))]
+                (let [-output (+ (mmul X W) (m/row-like w0 X))]
                   (assoc this
-                         :output output
+                         :output -output
                          :layer-input X)))
 
-  (backward-pass [this accum-grad]
+  (backward-pass [this -accum-grad]
                  (alog "layer-input: " (shape layer-input))
-                 (alog "accm-grad: " (shape accum-grad))
+                 (alog "accm-grad: " (shape -accum-grad))
                  (alog "W: " (shape W))
                  (merge this
                         (when trainable
-                          (let [W-opt (p/opt-grad W-opt
+                          (let [-W-opt (p/opt-grad W-opt
                                                   W
                                                   (mmul (transpose layer-input)
-                                                        accum-grad))
-                                w0-opt (p/opt-grad w0-opt
+                                                        -accum-grad))
+                                -w0-opt (p/opt-grad w0-opt
                                                    w0
                                                    ;; keepdims
-                                                   [(ms/sum accum-grad)])]
-                            {:W (:output W-opt)
-                             :w0 (:output w0-opt)
-                             :W-opt W-opt
-                             :w0-opt w0-opt}))
+                                                   [(ms/sum -accum-grad)])]
+                            {:W (:output -W-opt)
+                             :w0 (:output -w0-opt)
+                             :W-opt -W-opt
+                             :w0-opt -w0-opt}))
                         ;; Return accumulated gradient for next layer
                         ;; Calculated based on the weights used during the forward pass
-                        {:accum-grad (dot accum-grad (transpose W))}))
+                        {:accum-grad (dot -accum-grad (transpose W))}))
 
   (output-shape [this] [n-units]))
 
@@ -128,37 +129,37 @@
 
   (forward-pass [this X _]
                 (let [[batch-size timesteps input-dim] (shape X)
-                      states (m/zeros [batch-size (inc timesteps) n-units])]
+                      -states (m/zeros [batch-size (inc timesteps) n-units])]
                   (loop [[t & ts] (range timesteps)
                          ;; Save these values for use in backprop.
-                         state-input (m/zeros [batch-size timesteps n-units])
-                         output (m/zeros [batch-size timesteps input-dim])
+                         -state-input (m/zeros [batch-size timesteps n-units])
+                         -output (m/zeros [batch-size timesteps input-dim])
                          ;; Set last time step to zero for calculation of the state_input at time step zero
-                         states (sel/set-sel states
+                         -states (sel/set-sel -states
                                              (sel/irange)
                                              -1
                                              (m/zeros [batch-size n-units]))]
                     (if (empty? ts)
                       (assoc this
                              :layer-input X
-                             :state-input state-input
-                             :states states
-                             :output output)
+                             :state-input -state-input
+                             :states -states
+                             :output -output)
                       ;; Input to state_t is the current input and output of previous states
                       (recur ts
-                             (m/sety state-input
+                             (m/sety -state-input
                                      t
                                      (+ (dot (m/gety X t) (transpose U))
-                                        (dot (m/gety states (dec t)) (transpose W))))
-                             (m/sety states
+                                        (dot (m/gety -states (dec t)) (transpose W))))
+                             (m/sety -states
                                      t
-                                     (activation (m/gety state-input t)))
-                             (m/sety output
+                                     (activation (m/gety -state-input t)))
+                             (m/sety -output
                                      t
-                                     (dot (m/gety states t) (transpose V))))))))
+                                     (dot (m/gety -states t) (transpose V))))))))
 
-  (backward-pass [this accum-grad]
-                 (let [[_ timesteps _] (shape accum-grad)
+  (backward-pass [this -accum-grad]
+                 (let [[_ timesteps _] (shape -accum-grad)
                        f (fn [[t* & ts*] grad-U grad-W grad-wrt-state]
                            (if (empty? ts*)
                              [grad-U grad-W grad-wrt-state]
@@ -178,20 +179,20 @@
                           grad-W (m/zeros-like W)
                           ;; The gradient w.r.t the layer input.
                           ;; Will be passed on to the previous layer in the network
-                          accum-grad-next (m/zeros-like accum-grad)]
-                     (if (empty? ts)
-                       (let [U-opt (p/opt-grad U-opt U grad-U)
-                             V-opt (p/opt-grad V-opt V grad-V)
-                             W-opt (p/opt-grad W-opt W grad-W)]
+                          accum-grad-next (m/zeros-like -accum-grad)]
+                     (if (nil? t)
+                       (let [-U-opt (p/opt-grad U-opt U grad-U)
+                             -V-opt (p/opt-grad V-opt V grad-V)
+                             -W-opt (p/opt-grad W-opt W grad-W)]
                          (assoc this
                                 :U (:output U-opt)
                                 :V (:output V-opt)
                                 :W (:output W-opt)
-                                :U-opt U-opt
-                                :V-opt V-opt
-                                :W-opt W-opt
+                                :U-opt -U-opt
+                                :V-opt -V-opt
+                                :W-opt -W-opt
                                 :accum-grad accum-grad-next))
-                       (let [grad-wrt-state (* (dot (m/gety accum-grad t) V)
+                       (let [grad-wrt-state (* (dot (m/gety -accum-grad t) V)
                                                (activation/grad activation
                                                                 (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
                              ;; Gradient w.r.t the layer input
@@ -214,7 +215,7 @@
                                 grad-U
                                 ;; Update gradient w.r.t V at time step t
                                 (+ grad-V
-                                   (dot (transpose (m/gety accum-grad t))
+                                   (dot (transpose (m/gety -accum-grad t))
                                         (m/gety states t)))
                                 grad-W
                                 grad-wrt-state))))))
@@ -253,31 +254,31 @@
                 (let [[batch-size channels height width] (shape X)
                       ;; Turn image shape into column shape 
                       ;; (enables dot product between input and weights)
-                      X-col* (image-to-column X
+                      -X-col (image-to-column X
                                               filter-shape
                                               stride
                                               :output-shape padding)
                       ;; Turn weights into column shape
-                      W-col* (m/reshape W [n-filters -1])
+                      -W-col (m/reshape W [n-filters -1])
                       ;; Calculate output
-                      output (+ (dot W-col* X-col*) w0)
+                      -output (+ (dot -W-col -X-col) w0)
                       ;; Reshape into (n_filters, out_height, out_width, batch_size)
-                      output (m/reshape output
+                      -output (m/reshape -output
                                         (+ (output-shape this) [batch-size]))]
                   (assoc this
                          :layer-input X
-                         :X-col X-col*
-                         :W-col W-col*
+                         :X-col -X-col
+                         :W-col -W-col
                          ;; Redistribute axises so that batch size comes first
-                         :output (transpose output [3 0 1 2]))))
+                         :output (transpose -output [3 0 1 2]))))
 
-  (backward-pass [this accum-grad]
-                 (let [accum-grad (m/reshape (transpose accum-grad [1 2 3 0])
+  (backward-pass [this -accum-grad]
+                 (let [-accum-grad (m/reshape (transpose -accum-grad [1 2 3 0])
                                              [n-filters -1]) ;; Reshape accumulated gradient into column shape
                        ;; Recalculate the gradient which will be propogated back to prev. layer
-                       accum-grad (dot (transpose W-col) accum-grad)
+                       -accum-grad (dot (transpose W-col) -accum-grad)
                        ;; Reshape from column shape to image shape
-                       accum-grad (column-to-image accum-grad
+                       -accum-grad (column-to-image -accum-grad
                                                    (shape layer-input)
                                                    filter-shape
                                                    stride
@@ -286,17 +287,17 @@
                           (when trainable
                             ;; Take dot product between column shaped accum. gradient and column shape
                             ;; layer input to determine the gradient at the layer with respect to layer weights
-                            (let [grad-w (m/reshape (dot accum-grad (transpose X-col))
+                            (let [grad-w (m/reshape (dot -accum-grad (transpose X-col))
                                                     (shape W))
                                   ;; The gradient with respect to bias terms is the sum similarly to in Dense layer
-                                  grad-w0 (m/sum accum-grad 1 true)
-                                  W-opt (p/opt-grad W-opt W grad-w)
-                                  w0-opt (p/opt-grad w0-opt w0 grad-w0)]
-                              {:W (:output W-opt)
-                               :w0 (:output w0-opt)
-                               :W-opt W-opt
-                               :w0-opt w0-opt}))
-                          {:accum-grad accum-grad})))
+                                  grad-w0 (m/sum -accum-grad 1 true)
+                                  -W-opt (p/opt-grad W-opt W grad-w)
+                                  -w0-opt (p/opt-grad w0-opt w0 grad-w0)]
+                              {:W (:output -W-opt)
+                               :w0 (:output -w0-opt)
+                               :W-opt -W-opt
+                               :w0-opt -w0-opt}))
+                          {:accum-grad -accum-grad})))
 
   (output-shape [this]
                 (let [[channels height width] input-shape
@@ -341,50 +342,50 @@
                 (let [X (matrix X)
                       mean (ms/mean X)
                       var (ms/variance X)
-                      [running-mean running-var] (if-not running-mean
+                      [-running-mean -running-var] (if-not running-mean
                                                    [mean var]
                                                    [running-mean running-var])]
                   (merge this
                          ;; Initialize running mean and variance if first run
-                         (when-not running-mean
-                           {:running-mean running-mean
-                            :running-var running-var})
+                         (when-not -running-mean
+                           {:running-mean -running-mean
+                            :running-var -running-var})
                          (when (and training trainable)
                            {:running-mean (+ (* momentum running-mean)
                                              (* (- 1 momentum) mean))
                             :running-var (+ (* momentum running-var)
                                             (* (- 1 momentum) var))})
-                         (let [X-centered (- X mean)
-                               stddev-inv (/ 1 (sqrt (+ var eps)))
-                               X-norm (* X-centered stddev-inv)]
+                         (let [-X-centered (- X mean)
+                               -stddev-inv (/ 1 (sqrt (+ var eps)))
+                               X-norm (* -X-centered -stddev-inv)]
                            ;; Statistics saved for backward pass
-                           {:X-centered X-centered
-                            :stddev-inv stddev-inv
+                           {:X-centered -X-centered
+                            :stddev-inv -stddev-inv
                             :output (+ (* gamma X-norm) beta)}))))
 
-  (backward-pass [this accum-grad]
-                 (alog "accum-grad: " (shape accum-grad))
+  (backward-pass [this -accum-grad]
+                 (alog "-accum-grad: " (shape -accum-grad))
                  (let []
                    (merge this
                           (when trainable
                             (let [X-norm (* X-centered stddev-inv)
                                   _ (alog "X-norm: " (shape X-norm))
-                                  grad-gamma (m/sum (* accum-grad X-norm) :axis 0)
-                                  grad-beta (m/sum accum-grad :axis 0)
-                                  gamma-opt (p/opt-grad gamma-opt gamma grad-gamma)
-                                  beta-opt (p/opt-grad beta-opt beta grad-beta)]
-                              {:gamma (:output gamma-opt)
-                               :beta (:output beta-opt)
-                               :gamma-opt gamma-opt
-                               :beta-opt beta-opt}))
-                          (let [batch-size ((shape accum-grad) 0)]
+                                  grad-gamma (m/sum (* -accum-grad X-norm) :axis 0)
+                                  grad-beta (m/sum -accum-grad :axis 0)
+                                  -gamma-opt (p/opt-grad gamma-opt gamma grad-gamma)
+                                  -beta-opt (p/opt-grad beta-opt beta grad-beta)]
+                              {:gamma (:output -gamma-opt)
+                               :beta (:output -beta-opt)
+                               :gamma-opt -gamma-opt
+                               :beta-opt -beta-opt}))
+                          (let [batch-size ((shape -accum-grad) 0)]
                             {:accum-grad (->> X-centered
-                                              (* accum-grad)
+                                              (* -accum-grad)
                                               (#(m/sum % :axis 0))
                                               (* X-centered
                                                  (pow stddev-inv 2))
-                                              (- (* batch-size accum-grad)
-                                                 (m/sum accum-grad :axis 0))
+                                              (- (* batch-size -accum-grad)
+                                                 (m/sum -accum-grad :axis 0))
                                               (* (/ 1 batch-size)
                                                  gamma
                                                  stddev-inv))}))))
@@ -393,38 +394,38 @@
 
 (defprotocol PoolingLayer
   (pooling-forward-pass [this X-col])
-  (pooling-backward-pass [this accum-grad]))
+  (pooling-backward-pass [this -accum-grad]))
 
 (defpy pooling-forward [pooling-layer X (training true)]
   (let [[batch-size channels height width] (shape X)
         [_ out-height out-width] (output-shape pooling-layer)
-        X* (m/reshape X [(* batch-size channels) 1 height width])
-        X-col* (image-to-column X*
+        -X (m/reshape X [(* batch-size channels) 1 height width])
+        -X-col (image-to-column -X
                                 (:pool-shape pooling-layer)
                                 (:stride pooling-layer)
                                 (:padding pooling-layer))
-        [cache output] (pooling-forward-pass pooling-layer X-col*)
-        output (m/reshape output [out-height out-width batch-size channels])
-        output (transpose output 2 3 0 1)]
+        [-cache -output] (pooling-forward-pass pooling-layer -X-col)
+        -output (m/reshape -output [out-height out-width batch-size channels])
+        -output (transpose -output 2 3 0 1)]
     (assoc pooling-layer
-           :layer-input X
-           :cache cache
-           :output output)))
+           :layer-input -X
+           :cache -cache
+           :output -output)))
 
-(defpy pooling-backward [pooling-layer accum-grad]
-  (let [[batch-size _ _ _] (shape accum-grad)
+(defpy pooling-backward [pooling-layer -accum-grad]
+  (let [[batch-size _ _ _] (shape -accum-grad)
         [channels height width] (:input-shape pooling-layer)
         ;; np ravel
-        accum-grad (flatten (transpose accum-grad 2 3 0 1))
-        accum-grad-col (pooling-backward-pass pooling-layer accum-grad)
-        accum-grad (column-to-image accum-grad-col
+        -accum-grad (flatten (transpose -accum-grad 2 3 0 1))
+        accum-grad-col (pooling-backward-pass pooling-layer -accum-grad)
+        -accum-grad (column-to-image accum-grad-col
                                     [(* batch-size channels) 1 height width]
                                     (:pool-shape pooling-layer)
                                     (:stride pooling-layer)
                                     0)
-        accum-grad (m/reshape accum-grad (+ [batch-size] (:input-shape pooling-layer)))]
+        -accum-grad (m/reshape -accum-grad (+ [batch-size] (:input-shape pooling-layer)))]
     (assoc pooling-layer
-           :accum-grad accum-grad)))
+           :accum-grad -accum-grad)))
 
 (defpy pooling-output-shape [pooling-layer]
   (let [[channels height width] (:input-shape pooling-layer)
@@ -453,8 +454,8 @@
   (forward-pass [this X trainable]
                 (pooling-forward this X :trainable trainable))
 
-  (backward-pass [this accum-grad]
-                 (pooling-backward this accum-grad))
+  (backward-pass [this -accum-grad]
+                 (pooling-backward this -accum-grad))
 
   (output-shape [this]
                 (pooling-output-shape this))
@@ -467,14 +468,14 @@
                               output (sel/sel arg-max (range (m/size arg-max)))]
                           [arg-max output]))
 
-  (pooling-backward-pass [this accum-grad]
+  (pooling-backward-pass [this -accum-grad]
                          (let [accum-grad-col (m/zeros [(m/prod pool-shape)
-                                                        (m/size accum-grad)])
+                                                        (m/size -accum-grad)])
                                arg-max cache]
                            (sel/set-sel accum-grad-col
                                         arg-max
-                                        (range (m/size accum-grad))
-                                        accum-grad))))
+                                        (range (m/size -accum-grad))
+                                        -accum-grad))))
 
 (defpyrecord AveragePooling2D
   [(pool-shape [2 2]) (stride 1)
@@ -492,8 +493,8 @@
   (forward-pass [this X trainable]
                 (pooling-forward this X :trainable trainable))
 
-  (backward-pass [this accum-grad]
-                 (pooling-backward this accum-grad))
+  (backward-pass [this -accum-grad]
+                 (pooling-backward this -accum-grad))
 
   (output-shape [this]
                 (pooling-output-shape this))
@@ -505,13 +506,13 @@
                         (let [output (ms/mean X-col)]
                           [cache output]))
 
-  (pooling-backward-pass [this accum-grad]
+  (pooling-backward-pass [this -accum-grad]
                          (let [accum-grad-col (m/zeros [(m/prod pool-shape)
-                                                        (m/size accum-grad)])]
+                                                        (m/size -accum-grad)])]
                            (m/sety accum-grad-col
-                                   (range (m/size accum-grad))
+                                   (range (m/size -accum-grad))
                                    (* (/ 1. ((shape accum-grad-col) 0))
-                                      accum-grad)))))
+                                      -accum-grad)))))
 
 (defpy padding-forward [padding-layer X (training true)]
   (assoc padding-layer
@@ -523,17 +524,17 @@
                         :mode "constant"
                         :constant-values (:padding-value padding-layer))))
 
-(defpy padding-backward [padding-layer accum-grad]
+(defpy padding-backward [padding-layer -accum-grad]
   (let [[pad-top pad-left] [(get-in (:padding padding-layer) [0 0])
                             (get-in (:padding padding-layer) [1 0])]
         [height width] [((:input-shape padding-layer) 1)
                         ((:input-shape padding-layer) 2)]
-        accum-grad (sel/sel accum-grad
+        -accum-grad (sel/sel -accum-grad
                             (sel/irange)
                             (sel/irange)
                             (sel/irange pad-top (+ pad-top height))
                             (sel/irange pad-left (+ pad-left width)))]
-    accum-grad))
+    -accum-grad))
 
 (defpy padding-output-shape [padding-layer]
   (let [new-height (+ ((:input-shape padding-layer) 1)
@@ -550,13 +551,13 @@
   (initialize [this optimizer] this)
 
   (init [this]
-        (let [padding (if (int? (padding 0))
+        (let [-padding (if (int? (padding 0))
                         [[(padding 0) (padding 0)] (padding 1)]
                         padding)
-              padding (if (int? (padding 1))
-                        [(padding 0) [(padding 1) (padding 1)]])]
+              -padding (if (int? (-padding 1))
+                        [(-padding 0) [(-padding 1) (-padding 1)]])]
           (assoc this
-                 :padding padding
+                 :padding -padding
                  :padding-value 0)))
 
   (set-input-shape [this shape]
@@ -566,8 +567,8 @@
   (forward-pass [this X trainable]
                 (padding-forward this X :trainable trainable))
 
-  (backward-pass [this accum-grad]
-                 (padding-backward this accum-grad))
+  (backward-pass [this -accum-grad]
+                 (padding-backward this -accum-grad))
 
   (output-shape [this]
                 (padding-output-shape this))
@@ -590,9 +591,9 @@
                        :prev-shape (shape X)
                        :output (reshape X [((shape X) 0) -1])))
 
-  (backward-pass [this accum-grad]
+  (backward-pass [this -accum-grad]
                  (assoc this
-                        :accum-grad (reshape accum-grad prev-shape)))
+                        :accum-grad (reshape -accum-grad prev-shape)))
 
   (output-shape [this]
                 [(m/prod input-shape)])
@@ -617,7 +618,7 @@
                                             (size 1)
                                             :axis 3)))
 
-  (backward-pass [this accum-grad]
+  (backward-pass [this -accum-grad]
                  (assoc this
                         :accum-grad "np: accum_grad[:, :, ::self.size[0], ::self.size[1]]"))
 
@@ -643,9 +644,9 @@
                        :prev-shape (shape X)
                        :output (reshape X (+ [((shape X) 0)] shape))))
 
-  (backward-pass [this accum-grad]
+  (backward-pass [this -accum-grad]
                  (assoc this
-                        :accum-grad (reshape accum-grad prev-shape)))
+                        :accum-grad (reshape -accum-grad prev-shape)))
 
   (output-shape [this] shape)
 
@@ -668,15 +669,15 @@
                 (let [c (- 1 p)]
                   (merge this
                          (if training
-                           (let [mask* (gt (m/uniform 0.0 1.0 (shape X)) p)]
-                             {:mask* mask*
-                              :output (* X mask*)})
+                           (let [-mask* (gt (m/uniform 0.0 1.0 (shape X)) p)]
+                             {:mask* -mask*
+                              :output (* X -mask*)})
                            {:output (* X c)}))))
 
-  (backward-pass [this accum-grad]
-                 (alog "X: " (shape accum-grad))
+  (backward-pass [this -accum-grad]
+                 (alog "X: " (shape -accum-grad))
                  (assoc this
-                        :accum-grad (* accum-grad mask*)))
+                        :accum-grad (* -accum-grad mask*)))
 
   (output-shape [this] input-shape)
 
@@ -710,11 +711,11 @@
                        :layer-input X
                        :output (((activation-func activation-functions)) X)))
 
-  (backward-pass [this accum-grad]
+  (backward-pass [this -accum-grad]
                  (alog "layer-input: " (shape layer-input))
-                 (alog "accum-grad: " (shape accum-grad))
+                 (alog "-accum-grad: " (shape -accum-grad))
                  (assoc this
-                        :accum-grad (* accum-grad
+                        :accum-grad (* -accum-grad
                                        (activation/grad ((activation-func activation-functions))
                                                         layer-input))))
 

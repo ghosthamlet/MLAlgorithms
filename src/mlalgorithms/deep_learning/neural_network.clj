@@ -139,20 +139,20 @@
                                                                  y-batch)
                                                  1))))))]
          (loop [[i & is] (range n-epochs)
-                errors errors]
+                -errors errors]
            (if (nil? i)
              (assoc this
-                    :errors errors)
+                    :errors -errors)
              (recur is
-                    (assoc errors
-                           :training (conj (:training errors)
+                    (assoc -errors
+                           :training (conj (:training -errors)
                                            (m/mean (batch-error-fn)))
                            :validation (if val-set
-                                         (conj (:validation errors)
+                                         (conj (:validation -errors)
                                                ((test-on-batch this
                                                                (:X val-set)
                                                                (:y val-set)) 0))
-                                         (:validation errors))))))))
+                                         (:validation -errors))))))))
 
   (predict [this X]
            (alog)

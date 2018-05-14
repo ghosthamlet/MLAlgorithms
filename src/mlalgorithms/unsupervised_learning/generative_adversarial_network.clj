@@ -26,26 +26,21 @@
                         :img-dim (* img-rows img-cols)))
 
   (init-gan [this]
-            (let [optimizer (optimizer/make-adam :learning-rate 0.0002
-                                                 :b1 0.5)
+            (let [optimizer (optimizer/make-adam :learning-rate 0.0002 :b1 0.5)
                   loss-function (loss/make-crossentropy)
-                  discriminator (p/build-discriminator this
-                                                       optimizer
-                                                       loss-function)
-                  generator (p/build-generator this
-                                               optimizer
-                                               loss-function)]
+                  -discriminator (p/build-discriminator this optimizer loss-function)
+                  -generator (p/build-generator this optimizer loss-function)]
               (alog)
-              (nn/summary generator "Generator")
+              (nn/summary -generator "Generator")
               (alog)
-              (nn/summary discriminator "Discriminator")
+              (nn/summary -discriminator "Discriminator")
               (assoc this
-                     :discriminator discriminator
-                     :generator generator
+                     :discriminator -discriminator
+                     :generator -generator
                      :combined (assoc (nn/make-neuralnetwork optimizer
                                                              :loss-function loss-function)
-                                      :layers (concat (:layers generator)
-                                                      (:layers discriminator))))))
+                                      :layers (concat (:layers -generator)
+                                                      (:layers -discriminator))))))
 
   (build-generator [this optimizer loss-function]
                    (-> (nn/make-neuralnetwork optimizer :loss-function loss-function)
@@ -82,31 +77,30 @@
                y (:target mnist)
                half-batch (int (/ batch-size 2))]
            (alog "start")
-           (loop [[epoch & epochs] (range n-epochs)]
+           (loop [[epoch & epochs] (range n-epochs)
+                  -discriminator discriminator
+                  -generator generator
+                  -combined combined]
              (if (nil? epoch)
                (alog "Train fin")
                ;; ---------------------
                ;;  Train Discriminator
                ;; ---------------------
                (let [_ (alog "Train Discriminator")
-                     discriminator (nn/set-trainable discriminator true)
+                     -discriminator (nn/set-trainable -discriminator true)
                      ;; Select a random half batch of images
                      idx (random/sample-rand-int half-batch ((shape X) 0))
                      imgs (sel/sel X idx (sel/irange))
                      ;; Sample noise to use as generator input
                      noise (m/normal 0 1 [half-batch latent-dim])
                      ;; Generate a half batch of images
-                     gen-imgs (p/predict generator noise)
+                     gen-imgs (p/predict -generator noise)
                      ;; Valid = [1, 0], Fake = [0, 1]
-                     valid (m/concatenate (m/ones [half-batch 1])
-                                          (m/zeros [half-batch 1])
-                                          :axis 1)
-                     fake (m/concatenate (m/zeros [half-batch 1])
-                                         (m/ones [half-batch 1])
-                                         :axis 1)
+                     valid (m/concatenate (m/ones [half-batch 1]) (m/zeros [half-batch 1]) :axis 1)
+                     fake (m/concatenate (m/zeros [half-batch 1]) (m/ones [half-batch 1]) :axis 1)
                      ;; Train the discriminator
-                     [discriminator d-loss-real d-acc-real] (nn/train-on-batch discriminator imgs valid)
-                     [discriminator d-loss-fake d-acc-fake] (nn/train-on-batch discriminator gen-imgs fake)
+                     [-discriminator d-loss-real d-acc-real] (nn/train-on-batch -discriminator imgs valid)
+                     [-discriminator d-loss-fake d-acc-fake] (nn/train-on-batch -discriminator gen-imgs fake)
                      d-loss (* 0.5 (+ d-loss-real d-loss-fake))
                      d-acc (* 0.5 (+ d-acc-real d-acc-fake))
                      _ (alog)
@@ -115,21 +109,22 @@
                      ;;  Train Generator
                      ;; ---------------------
                      ;; We only want to train the generator for the combined model
-                     discriminator (nn/set-trainable discriminator false)
+                     -discriminator (nn/set-trainable -discriminator false)
                      ;; Sample noise and use as generator input
                      noise (m/normal 0 1 [batch-size latent-dim])
                      ;; The generator wants the discriminator to label the generated samples as valid
-                     valid (m/concatenate (m/ones [batch-size 1])
-                                          (m/zeros [batch-size 1])
-                                          :axis 1)
+                     valid (m/concatenate (m/ones [batch-size 1]) (m/zeros [batch-size 1]) :axis 1)
                      ;; Train the generator
-                     [combined g-loss g-acc] (nn/train-on-batch combined noise valid)]
+                     [-combined g-loss g-acc] (nn/train-on-batch -combined noise valid)]
                  (println (apply format "%d [D loss: %f, acc: %f%%] [G loss: %f, acc: %f%%]"
                                  epoch (map #(double %) [d-loss (* 100 d-acc) g-loss (* 100 g-acc)])))
                  ;; If at save interval => save generated image samples
                  #_(when (zero? (mod epoch save-interval))
                      (p/save-imgs this epoch))
-                 (recur epochs))))))
+                 (recur epochs
+                        -discriminator
+                        -generator
+                        -combined))))))
 
   (save-imgs [this epoch]
              (let [[r c] [5 5] ; Grid size
