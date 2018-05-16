@@ -101,3 +101,12 @@
         (let [content (slurp urlname)]
           (spit file content)
           content))))
+
+(defpy to-categorical [xs (n-col)]
+  (let [n-col (if-not n-col
+                (+ (m/amax xs) 1)
+                n-col)
+        one-hot (m/zeros [(first (shape xs)) n-col])]
+    ;; numpy: m.shape == (3, 3), m[[0,1,2], [0,1,2]] != m[:, [0,1,2]]
+    ;; core.matrix: (sel/sel m [0 1 2] [0 1 2]) == (m (sel/irange) [0 1 2])
+    (map #(assoc %1 %2 1) one-hot xs)))

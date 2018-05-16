@@ -98,8 +98,10 @@
         (not-implement))
     (not-implement)))
 
-(defn zeros [shape]
-  (reshape [] shape))
+(defpy zeros [shape (dtype)]
+  (case dtype
+    :float (matrix (reshape [] shape))
+    (reshape [] shape)))
 
 (defn zeros-like [xs]
   (reshape [] (shape xs)))
@@ -209,6 +211,9 @@
          (map (fn [x] (apply op/max x)) xs))
     (not-implement)))
 
+(defpy amax [xs]
+  (max xs))
+
 (defpy where
   [condition x y]
   (eif condition x y)
@@ -286,4 +291,41 @@
 (defpy mean [xs (axis)]
   (case axis
     nil (ms/mean (flatten xs))
+    (not-implement)))
+
+;; like m[:, -1] in numpy
+;; sel/end ?
+(defpy -x [xs axis]
+  (dec ((shape xs) axis)))
+
+(defpy linspace [start stop
+                 (num 50) (endpoint true)
+                 (dtype)]
+  (let [-div (if endpoint (- num 1) num)
+        y (range num)
+        delta (- stop start)
+        step (/ delta -div)
+        y (+ start
+             (if (zero? step)
+               (* (/ y -div) delta)
+               (* y step)))
+        y (if (and endpoint (> num 1))
+            (assoc y (dec (count y)) stop)
+            y)]
+    (case dtype
+      :float (matrix y)
+      :int (map int y)
+      (map int y))))
+
+(defpy roll [xs shift (axis)]
+  (if (= 2 (count (shape xs)))
+    (case axis
+      0 (let [len (count xs)]
+          (last (reduce (fn [[i xx] x]
+                          [(inc i)
+                           (assoc xx
+                                  (mod (+ i shift) len) x)])
+                        [0 xs]
+                        xs)))
+     (not-implement))
     (not-implement)))
