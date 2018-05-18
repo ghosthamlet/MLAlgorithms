@@ -1,6 +1,7 @@
 (defproject mlalgorithms "0.1.0-SNAPSHOT"
   :description "use closure and return fn to capsurize init params or states like class.
                 keyword and multimethod for activiaton loss grad fns. "
+  ;; http://spacemacs.org/layers/+lang/clojure/README.html
   :url "https://github.com/ghosthamlet/MLAlgorithms"
   :license  {:name "Eclipse Public License"
              :url "http://www.eclipse.org/legal/epl-v10.html"}
@@ -9,8 +10,9 @@
             ;; lein cljfmt check/fix
             [lein-cljfmt "0.5.7"]]
   :dependencies  [[org.clojure/clojure "1.9.0"]
+                  ;; https://github.com/mikera/core.matrix/blob/develop/src/test/clojure/clojure/core/matrix/demo/pagerank.clj
                   [net.mikera/core.matrix "0.62.0"]
-                  [net.mikera/vectorz-clj "0.47.0"]
+                  ;; [net.mikera/vectorz-clj "0.47.0"]
                   ;; https://github.com/metasoarous/oz
                   [metasoarous/oz "1.3.1"]
 

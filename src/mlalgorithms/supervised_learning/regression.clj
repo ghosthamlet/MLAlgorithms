@@ -1,6 +1,4 @@
 (ns mlalgorithms.supervised-learning.regression
-  "Port from
-  https://github.com/eriklindernoren/ML-From-Scratch/blob/master/mlfromscratch/supervised_learning/regression.py"
   (:refer-clojure :exclude [* - + / == < <= > >= not= min max])
   (:require clojure.core.matrix.impl.ndarray
             [clojure.core.matrix.stats :refer :all]
