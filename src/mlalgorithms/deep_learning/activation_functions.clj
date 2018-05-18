@@ -13,7 +13,8 @@
 (defpyrecord Sigmoid []
   clojure.lang.IFn
   (invoke [this x]
-          (/ 1 (+ 1 (exp (- x)))))
+          (logistic x)
+          #_(/ 1 (+ 1 (exp (- x)))))
 
   PActivation
   (grad [this x]
@@ -22,6 +23,19 @@
 (defpyrecord Softmax []
   clojure.lang.IFn
   (invoke [this x]
+          ;; in core.matrix
+          (softmax x)
+
+          (prn (shape x))
+          (prn (shape (m/max x
+                             :axis -1
+                             :keepdims true)))
+          ;; FIXME: column-like can't support more than (1,1) shape
+          ;;        see how core.matrix support ndarray fns
+          (prn (shape (m/column-like (m/max x
+                                            :axis -1
+                                            :keepdims true)
+                                     x)))
           (let [e-x (->> x
                          (m/column-like (m/max x
                                                :axis -1
@@ -50,7 +64,8 @@
 (defpyrecord ReLU []
   clojure.lang.IFn
   (invoke [this x]
-          (m/where (ge x 0) x 0))
+          (relu x)
+          #_(m/where (ge x 0) x 0))
 
   PActivation
   (grad [this x]
@@ -89,7 +104,8 @@
 (defpyrecord SoftPlus []
   clojure.lang.IFn
   (invoke [this x]
-          (log (+ 1 (exp x))))
+          (softplus x)
+          #_(log (+ 1 (exp x))))
 
   PActivation
   (grad [this x]

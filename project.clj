@@ -14,6 +14,12 @@
                   ;; https://github.com/metasoarous/oz
                   [metasoarous/oz "1.3.1"]
 
+                  ;; [incanter "1.9.2"]
+                  ;; https://nd4j.org/userguide
+                  ;; https://github.com/yetanalytics/dl4clj/blob/master/src/nd4clj/linalg/api/ndarray/indarray.clj
+                  ;; https://nd4j.org/doc/org/nd4j/linalg/factory/Nd4j.html
+                  [org.nd4j/nd4j-native-platform "0.8.0" :exclusions [com.google.guava/guava]]
+
                   [org.thnetos/cd-client "0.3.6"]
                   ;; JUST use *e or (.printStackTrace *e), no need below many debug tools
                   [org.clojure/tools.trace "0.7.9"]

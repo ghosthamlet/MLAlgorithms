@@ -33,7 +33,6 @@
 (defpyrecord NeuralNetwork
   [optimizer (loss-function)
    (validation-data) (layers [])
-   (n-epochs) (batch-size)
    (errors {:training [] :validation []}) (val-set)]
   PNeuralNetwork
   (init-nn [this]
@@ -122,7 +121,7 @@
                         (+ tot-params params))))))
 
   p/PModel
-  (fit [this X y]
+  (fit [this X y n-epochs batch-size]
        (let [n-samples ((shape X) 0)
              batch-error-fn #(loop [[i & is] (range 0 n-samples batch-size)
                                     batch-error []]
@@ -130,8 +129,8 @@
                                  batch-error
                                  (let [[begin end] [i (min (+ i batch-size)
                                                            n-samples)]
-                                       X-batch (sel/sel X (sel/irange begin end))
-                                       y-batch (sel/sel y (sel/irange begin end))]
+                                       X-batch (sel/sel X (sel/irange begin (dec end)) (sel/irange) (sel/irange))
+                                       y-batch (sel/sel y (sel/irange begin (dec end)) (sel/irange) (sel/irange))]
                                    (recur is
                                           (conj batch-error
                                                 ((train-on-batch this

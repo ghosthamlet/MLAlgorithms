@@ -1,7 +1,7 @@
 (ns mlalgorithms.protocols)
 
 (defprotocol PModel
-  (fit [this X y])
+  (fit [this X y] [this X y n-epochs batch-size])
   (predict [this X]))
 
 (defprotocol POptimizer

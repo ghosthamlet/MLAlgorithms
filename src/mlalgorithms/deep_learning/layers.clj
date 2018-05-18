@@ -15,7 +15,9 @@
             [mlalgorithms.utils.code :refer :all]
             [mlalgorithms.utils.error :refer :all]))
 
-(set-current-implementation :vectorz)
+;; convert nd4j to vectorz is more diffcult
+;; to default matrix just (matrix indarray)
+;; (set-current-implementation :vectorz)
 
 (declare activation-functions
          determine-padding
@@ -128,6 +130,8 @@
                  (m/prod (shape W))))
 
   (forward-pass [this X _]
+                (alog "X: " (shape X))
+                (alog "W: " (shape W))
                 (let [[batch-size timesteps input-dim] (shape X)
                       -states (m/zeros [batch-size (inc timesteps) n-units])]
                   (loop [[t & ts] (range timesteps)
@@ -137,7 +141,8 @@
                          ;; Set last time step to zero for calculation of the state_input at time step zero
                          -states (sel/set-sel -states
                                              (sel/irange)
-                                             -1
+                                             (m/-x -states 1)
+                                             (sel/irange)
                                              (m/zeros [batch-size n-units]))]
                     (if (empty? ts)
                       (assoc this
@@ -147,16 +152,22 @@
                              :output -output)
                       ;; Input to state_t is the current input and output of previous states
                       (recur ts
-                             (m/sety -state-input
-                                     t
-                                     (+ (dot (m/gety X t) (transpose U))
-                                        (dot (m/gety -states (dec t)) (transpose W))))
-                             (m/sety -states
-                                     t
-                                     (activation (m/gety -state-input t)))
-                             (m/sety -output
-                                     t
-                                     (dot (m/gety -states t) (transpose V))))))))
+                             (sel/set-sel -state-input
+                                          (sel/irange)
+                                          t
+                                          (sel/irange)
+                                          (+ (mmul (sel/sel X (sel/irange) t (sel/irange)) (transpose U))
+                                             (mmul (sel/sel -states (sel/irange) (m/xi -states (dec t) 1) (sel/irange)) (transpose W))))
+                             (sel/set-sel -output
+                                          (sel/irange)
+                                          t
+                                          (sel/irange)
+                                          (mmul (sel/sel -states (sel/irange) t (sel/irange)) (transpose V)))
+                             (sel/set-sel -states
+                                          (sel/irange)
+                                          t
+                                          (sel/irange)
+                                          (activation (sel/sel -state-input (sel/irange) t (sel/irange)))))))))
 
   (backward-pass [this -accum-grad]
                  (let [[_ timesteps _] (shape -accum-grad)
@@ -164,13 +175,13 @@
                            (if (empty? ts*)
                              [grad-U grad-W grad-wrt-state]
                              (recur ts*
-                                    (+ grad-U (dot (transpose grad-wrt-state)
-                                                   (m/gety layer-input t*)))
-                                    (+ grad-W (dot (transpose grad-wrt-state)
-                                                   (m/gety states (dec t*))))
+                                    (+ grad-U (mmul (transpose grad-wrt-state)
+                                                   (sel/sel layer-input (sel/irange) t* (sel/irange))))
+                                    (+ grad-W (mmul (transpose grad-wrt-state)
+                                                   (sel/sel states (sel/irange) (dec t*) (sel/irange))))
                                     ;; Calculate gradient w.r.t previous state
-                                    (* (dot grad-wrt-state W)
-                                       (activation/grad activation (m/gety state-input (dec t*)))))))]
+                                    (* (mmul grad-wrt-state W)
+                                       (activation/grad activation (sel/sel state-input (sel/irange) (dec t*) (sel/irange)))))))]
                    ;; Back Propagation Through Time
                    (loop [[t & ts] (reverse (range timesteps))
                           ;; Variables where we save the accumulated gradient w.r.t each parameter
@@ -192,13 +203,13 @@
                                 :V-opt -V-opt
                                 :W-opt -W-opt
                                 :accum-grad accum-grad-next))
-                       (let [grad-wrt-state (* (dot (m/gety -accum-grad t) V)
+                       (let [grad-wrt-state (* (mmul (m/gety -accum-grad t) V)
                                                (activation/grad activation
-                                                                (m/gety state-input t))) ;; Calculate the gradient w.r.t the state input
+                                                                (sel/sel state-input (sel/irange) t (sel/irange)))) ;; Calculate the gradient w.r.t the state input
                              ;; Gradient w.r.t the layer input
                              accum-grad-next (m/sety accum-grad-next
                                                      t
-                                                     (dot grad-wrt-state U))
+                                                     (mmul grad-wrt-state U))
                              ;; Update gradient w.r.t W and U by backprop. from time step t for at most
                              ;; self.bptt_trunc number of time steps
                              [grad-U grad-W grad-wrt-state] (f (->> t
@@ -215,8 +226,8 @@
                                 grad-U
                                 ;; Update gradient w.r.t V at time step t
                                 (+ grad-V
-                                   (dot (transpose (m/gety -accum-grad t))
-                                        (m/gety states t)))
+                                   (mmul (transpose (m/gety -accum-grad t))
+                                        (sel/sel states (sel/irange) t (sel/irange))))
                                 grad-W
                                 grad-wrt-state))))))
 

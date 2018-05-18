@@ -110,3 +110,24 @@
     ;; numpy: m.shape == (3, 3), m[[0,1,2], [0,1,2]] != m[:, [0,1,2]]
     ;; core.matrix: (sel/sel m [0 1 2] [0 1 2]) == (m (sel/irange) [0 1 2])
     (map #(assoc %1 %2 1) one-hot xs)))
+
+(defpy shuffle-data [X y]
+  (let [idx (shuffle (range (first (shape X))))]
+    [(sel/sel X idx (sel/irange) (sel/irange))
+     (sel/sel y idx (sel/irange) (sel/irange))]))
+
+(defpy train-test-split [X y (test-size) (shuffle true)]
+  (let [[X y] (if shuffle
+                (shuffle-data X y)
+                [X y])
+        ylen (count (vec y))
+        split-i (- ylen
+                   (int ((comp floor /)
+                         ylen
+                         (/ 1 test-size))))
+        end (if (zero? split-i) 0 (dec split-i))
+        [X-train X-test] [(sel/sel X (sel/irange end) (sel/irange) (sel/irange))
+                          (sel/sel X (sel/irange split-i sel/end) (sel/irange) (sel/irange))]
+        [y-train y-test] [(sel/sel y (sel/irange end) (sel/irange) (sel/irange))
+                          (sel/sel y (sel/irange split-i sel/end) (sel/irange) (sel/irange))]]
+    [X-train X-test y-train y-test]))

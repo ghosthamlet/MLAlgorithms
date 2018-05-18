@@ -7,7 +7,56 @@
             [clojure.core.matrix.selection :as sel]
             [clojure.core.matrix.stats :as ms]
             [mlalgorithms.utils.code :refer :all]
-            [mlalgorithms.utils.error :refer :all]))
+            [mlalgorithms.utils.error :refer :all])
+  (:import [org.nd4j.linalg.factory Nd4j]
+           [org.nd4j.linalg.api.ndarray INDArray]))
+
+;; convert nd4j to vectorz is more diffcult
+;; to default matrix just (matrix indarray)
+;; so we have to use core.matrix default implment
+;; https://www.programcreek.com/java-api-examples/index.php?api=org.nd4j.linalg.api.ndarray.INDArray
+;; copy from https://github.com/yetanalytics/dl4clj/blob/master/src/nd4clj/linalg/factory/nd4j.clj
+(defn vec->indarray
+  [data]
+  (Nd4j/create (double-array data)))
+
+(defn matrix->indarray
+  [matrix]
+  (as-> (for [each matrix]
+          (double-array each))
+      data
+    (into [] data)
+    (into-array data)
+    (Nd4j/create data)))
+
+;; XXX: nd4j is more like numpy
+;;      many fns can take axis/dims params
+;;      and idx/axis/dims can be -1
+(defn tensor->indarray
+  [matrix]
+  (if (isa? (class matrix) INDArray)
+    matrix
+    (let [dim (count (shape matrix))
+         f3 #(let [m (pmap %2 %1)
+                   a (Nd4j/zeros (int-array (shape %1)))]
+               (dotimes [i (count m)]
+                 (.putRow a i (nth m i)))
+               a)]
+     (case dim
+       0 matrix
+       1 (vec->indarray matrix)
+       2 (matrix->indarray matrix)
+       3 (f3 matrix matrix->indarray)
+       4 (f3 matrix tensor->indarray)
+       (not-implement)))))
+
+;; support neg index
+(defn mnth [xs n]
+  (sel/sel xs
+           (#(if (neg-int? %)
+               (+ (count (vec xs)) %)
+               %) n)
+           (sel/irange)))
 
 (defmacro sety [xs x v]
   `(sel/set-sel ~xs (sel/irange) ~x ~v))
@@ -201,15 +250,28 @@
            (flatten (map #(repeat times %)
                          (flatten xs))))))
 
+(defpy insert-dim [xs axis (num 1)]
+  (assert (> num 0) "dim num have to be > 0")
+  (if (and (zero? axis) (= 1 num))
+    [xs]
+    (case axis
+      0 (insert-dim [xs] axis (dec num))
+      1 (pmap (fn [x] [x]) xs)
+      2 (pmap #(insert-dim % 1 :num num) xs)
+      3 (pmap #(insert-dim % 2 :num num) xs))))
+
+(defpy do-keepdims [xs axis (keepdims true)]
+  (if keepdims
+    (insert-dim xs axis :num 1)
+    xs))
+
+;; https://github.com/yetanalytics/dl4clj/blob/master/src/nd4clj/linalg/api/ndarray/indarray.clj
 (defpy max [xs (axis 0) (keepdims false)]
-  (case axis
-    0 (if keepdims
-        [(apply op/max xs)]
-        (apply op/max xs))
-    -1 (if keepdims
-         (map (fn [x] [(apply op/max x)]) xs)
-         (map (fn [x] (apply op/max x)) xs))
-    (not-implement)))
+  (-> xs
+      tensor->indarray
+      (.max (int-array [axis]))
+      matrix
+      (do-keepdims axis :keepdims keepdims)))
 
 (defpy amax [xs]
   (max xs))
@@ -284,7 +346,7 @@
   (repeat ((shape xs1) 0) (xs 0)))
 
 (defpy column-like [xs xs1]
-  (let [col-cnt ((shape xs1) 1)]
+  (let [col-cnt (last (shape xs1))]
     (apply concat
            (emap #(repeat col-cnt %) xs))))
 
@@ -297,6 +359,11 @@
 ;; sel/end ?
 (defpy -x [xs axis]
   (dec ((shape xs) axis)))
+
+(defpy xi [xs i axis]
+  (if (neg? i)
+    (-x xs axis)
+    i))
 
 (defpy linspace [start stop
                  (num 50) (endpoint true)
@@ -317,15 +384,19 @@
       :int (map int y)
       (map int y))))
 
-(defpy roll [xs shift (axis)]
-  (if (= 2 (count (shape xs)))
-    (case axis
-      0 (let [len (count xs)]
-          (last (reduce (fn [[i xx] x]
-                          [(inc i)
-                           (assoc xx
-                                  (mod (+ i shift) len) x)])
-                        [0 xs]
-                        xs)))
-     (not-implement))
-    (not-implement)))
+(defpy roll [xs shift (axis 0)]
+  (roate xs axis shift)
+  #_(if (= 2 (count (shape xs)))
+      (case axis
+        0 (let [absmove (mod shift (count (vec xs)))]
+            (map-indexed (fn [i _]
+                           (mnth xs (- i absmove)))
+                         xs)
+            #_(last (reduce (fn [[i xx] x]
+                              [(inc i)
+                               (assoc xx
+                                      (mod (+ i shift) len) x)])
+                            [0 xs]
+                            xs)))
+        (not-implement))
+      (not-implement)))
