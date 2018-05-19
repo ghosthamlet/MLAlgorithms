@@ -1,7 +1,6 @@
 (defproject mlalgorithms "0.1.0-SNAPSHOT"
   :description "use closure and return fn to capsurize init params or states like class.
                 keyword and multimethod for activiaton loss grad fns. "
-  ;; http://spacemacs.org/layers/+lang/clojure/README.html
   :url "https://github.com/ghosthamlet/MLAlgorithms"
   :license  {:name "Eclipse Public License"
              :url "http://www.eclipse.org/legal/epl-v10.html"}
@@ -40,3 +39,6 @@
   :repl-options {:nrepl-middleware
                  [com.gfredericks.debug-repl/wrap-debug-repl]}
   :profiles {:dev {:dependencies [[philoskim/debux "0.4.7"]]}})
+
+;; http://spacemacs.org/layers/+lang/clojure/README.html
+;; https://www.programcreek.com/2017/07/build-an-ai-programmer-using-recurrent-neural-network-3/

@@ -11,6 +11,16 @@
   (:import [org.nd4j.linalg.factory Nd4j]
            [org.nd4j.linalg.api.ndarray INDArray]))
 
+(defmacro with-indarray [[binding xs & kwargs] & body]
+  `(let [~binding (tensor->indarray ~xs)
+         kwargs# (apply array-map ~kwargs)
+         ret# (matrix (do ~@body))]
+     (if (contains kwargs# :axis)
+       (do-keepdims ret#
+                    :axis (:axis kwargs#)
+                    :keepdims (:keepdims kwargs#))
+       ret#)))
+
 ;; convert nd4j to vectorz is more diffcult
 ;; to default matrix just (matrix indarray)
 ;; so we have to use core.matrix default implment
@@ -250,28 +260,26 @@
            (flatten (map #(repeat times %)
                          (flatten xs))))))
 
-(defpy insert-dim [xs axis (num 1)]
+(defpy insert-dim [xs (axis 0) (num 1)]
   (assert (> num 0) "dim num have to be > 0")
   (if (and (zero? axis) (= 1 num))
     [xs]
     (case axis
       0 (insert-dim [xs] axis (dec num))
       1 (pmap (fn [x] [x]) xs)
-      2 (pmap #(insert-dim % 1 :num num) xs)
-      3 (pmap #(insert-dim % 2 :num num) xs))))
+      2 (pmap #(insert-dim % :axis 1 :num num) xs)
+      3 (pmap #(insert-dim % :axis 2 :num num) xs))))
 
-(defpy do-keepdims [xs axis (keepdims true)]
+(defpy do-keepdims [xs (axis 0) (keepdims true)]
   (if keepdims
-    (insert-dim xs axis :num 1)
+    (insert-dim xs :axis axis :num 1)
     xs))
 
 ;; https://github.com/yetanalytics/dl4clj/blob/master/src/nd4clj/linalg/api/ndarray/indarray.clj
 (defpy max [xs (axis 0) (keepdims false)]
-  (-> xs
-      tensor->indarray
-      (.max (int-array [axis]))
-      matrix
-      (do-keepdims axis :keepdims keepdims)))
+  (with-indarray [m xs
+                  :axis axis :keepdims keepdims]
+    (.max m (int-array [axis]))))
 
 (defpy amax [xs]
   (max xs))
