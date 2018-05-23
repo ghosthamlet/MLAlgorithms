@@ -81,8 +81,8 @@
           (recur (dec i)
                  (- -w (* learning-rate
                          ;; Gradient of l2 loss w.r.t w
-                         (+ (dot (- y y-pred) X)
-                            (grad regularization -w))))
+                          (+ (dot (- y y-pred) X)
+                             (grad regularization -w))))
                  (conj training-errors
                        ;; Calculate l2 loss
                        (mean (+ (* 0.5 (pow (- y y-pred) 2))

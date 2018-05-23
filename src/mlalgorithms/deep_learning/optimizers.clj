@@ -17,11 +17,11 @@
             (alog "StochasticGradientDescent")
             (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [-w-updt (if w-updt
-                           w-updt
-                           (m/zeros (shape w)))
+                            w-updt
+                            (m/zeros (shape w)))
                      ;; Use momentum if set
                   -w-updt (+ (* momentum -w-updt)
-                            (* (- 1 momentum) grad-wrt-w))]
+                             (* (- 1 momentum) grad-wrt-w))]
               (assoc this
                      :w-updt -w-updt
                         ;; Move against the gradient to minimize loss
@@ -37,10 +37,10 @@
                ;; Calculate the gradient of the loss a bit further down the slope from w
             (let [approx-future-grad (m/clip (grad-func (- w (* momentum w-updt))) -1 1)
                   -w-updt (if-not (m/any w-updt)
-                           (m/zeros (shape w))
-                           w-updt)
+                            (m/zeros (shape w))
+                            w-updt)
                   -w-updt (+ (* momentum -w-updt)
-                            (* learning-rate approx-future-grad))]
+                             (* learning-rate approx-future-grad))]
               (assoc this
                      :w-updt -w-updt
                         ;; Move against the gradient to minimize loss
@@ -74,14 +74,14 @@
             (alog "Adadelta")
             (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [[-w-updt -E-w-updt -E-grad] (if w-updt
-                                             [w-updt E-w-updt E-grad]
-                                             [(m/zeros (shape w))
-                                              (m/zeros (shape w))
-                                              (m/zeros (shape grad-wrt-w))])
+                                                [w-updt E-w-updt E-grad]
+                                                [(m/zeros (shape w))
+                                                 (m/zeros (shape w))
+                                                 (m/zeros (shape grad-wrt-w))])
                      ;; Update average of gradients at w
                   -E-grad (+ (* rho -E-grad)
-                            (* (- 1 rho)
-                               (pow grad-wrt-w 2)))
+                             (* (- 1 rho)
+                                (pow grad-wrt-w 2)))
                   RMS-delta-w (sqrt (+ -E-w-updt eps))
                   RMS-grad (sqrt (+ -E-grad eps))
                      ;; Adaptive learning rate
@@ -90,8 +90,8 @@
                   -w-updt (* adaptive-lr grad-wrt-w)
                      ;; Update the running average of w updates
                   -E-w-updt (+ (* rho -E-w-updt)
-                              (* (- 1 rho)
-                                 (pow -w-updt 2)))]
+                               (* (- 1 rho)
+                                  (pow -w-updt 2)))]
               (assoc this
                      :w-updt -w-updt
                      :E-w-updt -E-w-updt
@@ -107,11 +107,11 @@
             (alog "RMSprop")
             (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [-Eg (if Eg
-                       Eg
-                       (m/zeros (shape grad-wrt-w)))
+                        Eg
+                        (m/zeros (shape grad-wrt-w)))
                   -Eg (+ (* rho -Eg)
-                        (* (- 1 rho)
-                           (pow grad-wrt-w 2)))]
+                         (* (- 1 rho)
+                            (pow grad-wrt-w 2)))]
               (assoc this
                      :Eg -Eg
                         ;; Divide the learning rate for a weight by a running average of the magnitudes of recent
@@ -131,19 +131,19 @@
             (alog "Adam")
             (alog "w: " (shape w) " grad-wrt-w: " (shape grad-wrt-w))
             (let [[-m -v] (if m
-                          [m v]
-                          [(m/zeros (shape grad-wrt-w))
-                           (m/zeros (shape grad-wrt-w))])
+                            [m v]
+                            [(m/zeros (shape grad-wrt-w))
+                             (m/zeros (shape grad-wrt-w))])
                   -m (+ (* b1 -m)
-                       (* (- 1 b1)
-                          grad-wrt-w))
+                        (* (- 1 b1)
+                           grad-wrt-w))
                   -v (+ (* b2 -v)
-                       (* (- 1 b2)
-                          (pow grad-wrt-w 2)))
+                        (* (- 1 b2)
+                           (pow grad-wrt-w 2)))
                   m-hat (/ -m (- 1 b1))
                   v-hat (/ -v (- 1 b2))
                   -w-updt (/ (* learning-rate m-hat)
-                            (+ (sqrt v-hat) eps))]
+                             (+ (sqrt v-hat) eps))]
               (assoc this
                      :m -m
                      :v -v

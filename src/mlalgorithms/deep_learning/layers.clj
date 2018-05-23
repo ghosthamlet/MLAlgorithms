@@ -78,13 +78,13 @@
                  (merge this
                         (when trainable
                           (let [-W-opt (p/opt-grad W-opt
-                                                  W
-                                                  (mmul (transpose layer-input)
-                                                        -accum-grad))
+                                                   W
+                                                   (mmul (transpose layer-input)
+                                                         -accum-grad))
                                 -w0-opt (p/opt-grad w0-opt
-                                                   w0
+                                                    w0
                                                    ;; keepdims
-                                                   [(ms/sum -accum-grad)])]
+                                                    [(ms/sum -accum-grad)])]
                             {:W (:output -W-opt)
                              :w0 (:output -w0-opt)
                              :W-opt -W-opt
@@ -140,10 +140,10 @@
                          -output (m/zeros [batch-size timesteps input-dim])
                          ;; Set last time step to zero for calculation of the state_input at time step zero
                          -states (sel/set-sel -states
-                                             (sel/irange)
-                                             (m/-x -states 1)
-                                             (sel/irange)
-                                             (m/zeros [batch-size n-units]))]
+                                              (sel/irange)
+                                              (m/-x -states 1)
+                                              (sel/irange)
+                                              (m/zeros [batch-size n-units]))]
                     (if (empty? ts)
                       (assoc this
                              :layer-input X
@@ -176,9 +176,9 @@
                              [grad-U grad-W grad-wrt-state]
                              (recur ts*
                                     (+ grad-U (mmul (transpose grad-wrt-state)
-                                                   (sel/sel layer-input (sel/irange) t* (sel/irange))))
+                                                    (sel/sel layer-input (sel/irange) t* (sel/irange))))
                                     (+ grad-W (mmul (transpose grad-wrt-state)
-                                                   (sel/sel states (sel/irange) (dec t*) (sel/irange))))
+                                                    (sel/sel states (sel/irange) (dec t*) (sel/irange))))
                                     ;; Calculate gradient w.r.t previous state
                                     (* (mmul grad-wrt-state W)
                                        (activation/grad activation (sel/sel state-input (sel/irange) (dec t*) (sel/irange)))))))]
@@ -227,7 +227,7 @@
                                 ;; Update gradient w.r.t V at time step t
                                 (+ grad-V
                                    (mmul (transpose (m/gety -accum-grad t))
-                                        (sel/sel states (sel/irange) t (sel/irange))))
+                                         (sel/sel states (sel/irange) t (sel/irange))))
                                 grad-W
                                 grad-wrt-state))))))
 
@@ -275,7 +275,7 @@
                       -output (+ (dot -W-col -X-col) w0)
                       ;; Reshape into (n_filters, out_height, out_width, batch_size)
                       -output (m/reshape -output
-                                        (+ (output-shape this) [batch-size]))]
+                                         (+ (output-shape this) [batch-size]))]
                   (assoc this
                          :layer-input X
                          :X-col -X-col
@@ -285,15 +285,15 @@
 
   (backward-pass [this -accum-grad]
                  (let [-accum-grad (m/reshape (transpose -accum-grad [1 2 3 0])
-                                             [n-filters -1]) ;; Reshape accumulated gradient into column shape
+                                              [n-filters -1]) ;; Reshape accumulated gradient into column shape
                        ;; Recalculate the gradient which will be propogated back to prev. layer
                        -accum-grad (dot (transpose W-col) -accum-grad)
                        ;; Reshape from column shape to image shape
                        -accum-grad (column-to-image -accum-grad
-                                                   (shape layer-input)
-                                                   filter-shape
-                                                   stride
-                                                   :output-shape padding)]
+                                                    (shape layer-input)
+                                                    filter-shape
+                                                    stride
+                                                    :output-shape padding)]
                    (merge this
                           (when trainable
                             ;; Take dot product between column shaped accum. gradient and column shape
@@ -354,8 +354,8 @@
                       mean (ms/mean X)
                       var (ms/variance X)
                       [-running-mean -running-var] (if-not running-mean
-                                                   [mean var]
-                                                   [running-mean running-var])]
+                                                     [mean var]
+                                                     [running-mean running-var])]
                   (merge this
                          ;; Initialize running mean and variance if first run
                          (when-not -running-mean
@@ -430,10 +430,10 @@
         -accum-grad (flatten (transpose -accum-grad 2 3 0 1))
         accum-grad-col (pooling-backward-pass pooling-layer -accum-grad)
         -accum-grad (column-to-image accum-grad-col
-                                    [(* batch-size channels) 1 height width]
-                                    (:pool-shape pooling-layer)
-                                    (:stride pooling-layer)
-                                    0)
+                                     [(* batch-size channels) 1 height width]
+                                     (:pool-shape pooling-layer)
+                                     (:stride pooling-layer)
+                                     0)
         -accum-grad (m/reshape -accum-grad (+ [batch-size] (:input-shape pooling-layer)))]
     (assoc pooling-layer
            :accum-grad -accum-grad)))
@@ -541,10 +541,10 @@
         [height width] [((:input-shape padding-layer) 1)
                         ((:input-shape padding-layer) 2)]
         -accum-grad (sel/sel -accum-grad
-                            (sel/irange)
-                            (sel/irange)
-                            (sel/irange pad-top (+ pad-top height))
-                            (sel/irange pad-left (+ pad-left width)))]
+                             (sel/irange)
+                             (sel/irange)
+                             (sel/irange pad-top (+ pad-top height))
+                             (sel/irange pad-left (+ pad-left width)))]
     -accum-grad))
 
 (defpy padding-output-shape [padding-layer]
@@ -563,10 +563,10 @@
 
   (init [this]
         (let [-padding (if (int? (padding 0))
-                        [[(padding 0) (padding 0)] (padding 1)]
-                        padding)
+                         [[(padding 0) (padding 0)] (padding 1)]
+                         padding)
               -padding (if (int? (-padding 1))
-                        [(-padding 0) [(-padding 1) (-padding 1)]])]
+                         [(-padding 0) [(-padding 1) (-padding 1)]])]
           (assoc this
                  :padding -padding
                  :padding-value 0)))

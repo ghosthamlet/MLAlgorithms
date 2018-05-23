@@ -34,7 +34,7 @@
   [matrix]
   (as-> (for [each matrix]
           (double-array each))
-      data
+        data
     (into [] data)
     (into-array data)
     (Nd4j/create data)))
@@ -47,18 +47,18 @@
   (if (isa? (class matrix) INDArray)
     matrix
     (let [dim (count (shape matrix))
-         f3 #(let [m (pmap %2 %1)
-                   a (Nd4j/zeros (int-array (shape %1)))]
-               (dotimes [i (count m)]
-                 (.putRow a i (nth m i)))
-               a)]
-     (case dim
-       0 matrix
-       1 (vec->indarray matrix)
-       2 (matrix->indarray matrix)
-       3 (f3 matrix matrix->indarray)
-       4 (f3 matrix tensor->indarray)
-       (not-implement)))))
+          f3 #(let [m (pmap %2 %1)
+                    a (Nd4j/zeros (int-array (shape %1)))]
+                (dotimes [i (count m)]
+                  (.putRow a i (nth m i)))
+                a)]
+      (case dim
+        0 matrix
+        1 (vec->indarray matrix)
+        2 (matrix->indarray matrix)
+        3 (f3 matrix matrix->indarray)
+        4 (f3 matrix tensor->indarray)
+        (not-implement)))))
 
 ;; support neg index
 (defn mnth [xs n]
