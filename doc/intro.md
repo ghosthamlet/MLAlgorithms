@@ -17,6 +17,8 @@ https://www.reddit.com/r/MachineLearning/comments/8ca36k/d_the_fall_of_rnn_lstm_
 https://muffintech.org/blog/id/12/
 (Maybe AI/NLP/ML/DL(neural network architecture RNN/LSTM/Attention) can get inspiration from SCIFI: Stories of Your Life)
 
+https://www.programcreek.com/2017/07/build-an-ai-programmer-using-recurrent-neural-network-3/
+
 data driven
 https://github.com/gigasquid/k9
 

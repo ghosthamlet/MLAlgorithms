@@ -39,6 +39,3 @@
   :repl-options {:nrepl-middleware
                  [com.gfredericks.debug-repl/wrap-debug-repl]}
   :profiles {:dev {:dependencies [[philoskim/debux "0.4.7"]]}})
-
-;; http://spacemacs.org/layers/+lang/clojure/README.html
-;; https://www.programcreek.com/2017/07/build-an-ai-programmer-using-recurrent-neural-network-3/
