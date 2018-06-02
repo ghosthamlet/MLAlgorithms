@@ -26,4 +26,7 @@ load datasets
 https://github.com/scikit-learn/scikit-learn/blob/master/sklearn/datasets/mldata.py
 https://github.com/originrose/cortex/blob/master/src/cortex/datasets/mnist.clj
 
+make Julia version
+https://white.ucc.asn.au/2018/06/01/Julia-Favourite-New-Things.html
+
 TODO: write [great documentation](http://jacobian.org/writing/what-to-write/)
