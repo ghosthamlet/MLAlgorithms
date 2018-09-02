@@ -77,3 +77,14 @@
        (defpy ~(symbol (str "make-" (s/lower-case name)))
          ~fields
          (~(symbol (str name ".")) ~@keys)))))
+
+
+(defmacro $
+  """($ xs i1 . i2 - j1 . j2)
+   or ($ xs i1.i2 - j1.j2)
+   or ($ xs i1.i2-j1.j2)
+   or ($ xs :i1:i2.j1:j2)
+   use: ($ xs "i1:i2, j1:j2")
+  """
+  [xs & zs]
+  `())

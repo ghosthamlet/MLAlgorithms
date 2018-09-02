@@ -11,6 +11,9 @@
   (:import [org.nd4j.linalg.factory Nd4j]
            [org.nd4j.linalg.api.ndarray INDArray]))
 
+;;; some complex matrix fns not exists in java, call it in python:
+;;; https://pythonhosted.org/javabridge/java2python.html
+
 (defmacro with-indarray [[binding xs & kwargs] & body]
   `(let [~binding (tensor->indarray ~xs)
          kwargs# (apply array-map ~kwargs)

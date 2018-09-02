@@ -1,9 +1,12 @@
 # mlalgorithms
 
-CNN RNN/LSTM/GRU GAN CapsNet, port from 
+CNN RNN/LSTM/GRU GAN CapsNet SNN, port from 
+
 https://github.com/eriklindernoren/ML-From-Scratch 
 
 https://github.com/xanderchf/pyCapsNet/blob/master/numpy/modules.py
+
+https://github.com/Shikhargupta/Spiking-Neural-Network
 
 ## Usage
 
