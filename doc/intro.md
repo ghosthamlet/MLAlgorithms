@@ -3,10 +3,12 @@
 https://github.com/oujago/NumpyDL 
 https://github.com/rushter/MLAlgorithms 
 https://github.com/eriklindernoren/ML-From-Scratch 
+https://github.com/ddbourgin/numpy-ml
 https://github.com/jefkine/zeta-learn/tree/master/ztlearn/dl
 https://github.com/wiseodd/hipsternet/blob/master/hipsternet/neuralnet.py
 https://github.com/jefkine/ML-From-Scratch/blob/master/mlfromscratch/deep_learning/lstm.py
 https://github.com/nicodjimenez/lstm/blob/master/lstm.py
+https://github.com/Ricardicus/recurrent-neural-net/blob/master/python%20implementation/recurrent_neural_net.py
 http://blog.varunajayasiri.com/numpy_lstm.html
 https://github.com/shinseung428/gan_numpy
 https://www.kdnuggets.com/2018/08/only-numpy-implementing-gans-adam-optimizer.html
